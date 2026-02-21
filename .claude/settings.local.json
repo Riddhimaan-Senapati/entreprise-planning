@@ -8,7 +8,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
       "Bash(tail:*)",
-      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python -c \"import main; print\\('App imported OK'\\)\" 2>&1)"
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python -c \"import main; print\\('App imported OK'\\)\" 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python score_skills.py --dry-run 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python score_skills.py 2>&1)"
     ]
   }
 }

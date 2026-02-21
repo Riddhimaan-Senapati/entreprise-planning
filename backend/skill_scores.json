@@ -1,0 +1,86 @@
+{
+  "task-001": {
+    "mem-007": {
+      "skillMatchPct": 90,
+      "contextReason": "Jordan's direct OAuth and Node.js expertise, coupled with a backend engineering role, are highly relevant for an Auth service migration to OAuth 2.0."
+    },
+    "mem-012": {
+      "skillMatchPct": 35,
+      "contextReason": "Maya's frontend skills don't directly align with a backend OAuth 2.0 migration, though her prior knowledge of the original auth layer is valuable."
+    },
+    "mem-001": {
+      "skillMatchPct": 75,
+      "contextReason": "Alex has relevant backend security experience and a senior role, but explicit OAuth 2.0 migration experience isn't listed."
+    }
+  },
+  "task-002": {
+    "mem-015": {
+      "skillMatchPct": 95,
+      "contextReason": "Sam's Stripe API experience and backend engineering background are directly relevant to a payment gateway timeout incident."
+    },
+    "mem-004": {
+      "skillMatchPct": 98,
+      "contextReason": "Priya's role as a Payments Engineer, her relevant skills, and her prior work on the original gateway integration make her an excellent fit for this P0 incident."
+    },
+    "mem-019": {
+      "skillMatchPct": 95,
+      "contextReason": "Chris's SRE role, incident response and monitoring skills, and on-call status make him an excellent match for a P0 production incident."
+    }
+  },
+  "task-003": {
+    "mem-012": {
+      "skillMatchPct": 95,
+      "contextReason": "Maya's senior frontend role, React, and performance skills, including specific React profiling expertise, are a strong match for this P1 performance regression."
+    },
+    "mem-021": {
+      "skillMatchPct": 95,
+      "contextReason": "Dana's frontend skills and specific experience with Recharts optimization directly align with fixing a dashboard performance regression."
+    },
+    "mem-002": {
+      "skillMatchPct": 85,
+      "contextReason": "Lee's mobile engineering skills are highly relevant for performance regression fixes, and he has recent, direct experience with similar issues on the mobile app."
+    }
+  },
+  "task-004": {
+    "mem-023": {
+      "skillMatchPct": 95,
+      "contextReason": "Aria's direct ownership of the Figma token library and strong relevant skills make her an excellent match."
+    },
+    "mem-011": {
+      "skillMatchPct": 95,
+      "contextReason": "Felix has direct "
+    },
+    "mem-018": {
+      "skillMatchPct": 95,
+      "contextReason": "Zoe's direct experience with CSS variable migration and design systems aligns perfectly with the task requirements."
+    }
+  },
+  "task-005": {
+    "mem-014": {
+      "skillMatchPct": 95,
+      "contextReason": "Nadia's skills in Metrics, Data Analysis, and OKRs directly align with the task, reinforced by her ownership of the metrics dashboard."
+    },
+    "mem-008": {
+      "skillMatchPct": 95,
+      "contextReason": "Evan's OKR and Analytics skills, combined with his prior experience preparing similar reports, make him an excellent match."
+    },
+    "mem-020": {
+      "skillMatchPct": 98,
+      "contextReason": "Taylor's Data Analyst role and expertise in SQL, Python, and Looker directly align with the task of compiling product metrics."
+    }
+  },
+  "task-006": {
+    "mem-011": {
+      "skillMatchPct": 95,
+      "contextReason": "Felix's a11y certification and explicit accessibility skill directly align with the WCAG 2.2 compliance audit task."
+    },
+    "mem-024": {
+      "skillMatchPct": 90,
+      "contextReason": "Riley has strong WCAG and accessibility skills, with direct prior experience auditing WCAG 2.1, making them highly suited for a WCAG 2.2 audit."
+    },
+    "mem-013": {
+      "skillMatchPct": 90,
+      "contextReason": "Morgan's "
+    }
+  }
+}
