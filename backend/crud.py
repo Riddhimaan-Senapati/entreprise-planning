@@ -12,9 +12,11 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
+import uuid
+
 from models import (
     Suggestion, SuggestionOut,
-    Task, TaskOut,
+    Task, TaskCreate, TaskOut,
     TeamMember, TeamMemberOut,
     WeekAvailability, WeekAvailabilityOut,
     DataSourceSignalOut, SummaryOut,
@@ -51,7 +53,7 @@ def _task_out(task: Task, db: Session) -> TaskOut:
         id=task.id,
         title=task.title,
         priority=task.priority,
-        assigneeId=task.assignee_id,
+        assigneeId=task.assignee_id,   # Optional[str]
         deadline=task.deadline,
         projectName=task.project_name,
         status=task.status,
@@ -90,6 +92,7 @@ def _member_out(member: TeamMember, db: Session) -> TeamMemberOut:
         currentTasks=[_task_out(t, db) for t in current_tasks],
         icsLinked=bool(member.ics_path),
         manuallyOverridden=member.manually_overridden,
+        managerNotes=member.manager_notes,
     )
 
 
@@ -190,6 +193,38 @@ def update_member_override(
     return member
 
 
+def update_member_notes(
+    db: Session,
+    member_id: str,
+    notes: str,
+) -> TeamMember | None:
+    """Persist manager notes for a member."""
+    member = db.get(TeamMember, member_id)
+    if not member:
+        return None
+    member.manager_notes = notes
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+def update_member_skills(
+    db: Session,
+    member_id: str,
+    skills: list[str],
+) -> TeamMember | None:
+    """Persist the skills list for a member."""
+    member = db.get(TeamMember, member_id)
+    if not member:
+        return None
+    member.skills = skills
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
 def reset_member_override(
     db: Session,
     member_id: str,
@@ -213,6 +248,56 @@ def reset_member_override(
 
 
 # ── Tasks ──────────────────────────────────────────────────────────────────────
+
+def create_task(db: Session, task_in: TaskCreate) -> Task:
+    # Derive status: if assignee provided the task is already covered;
+    # otherwise it's unassigned and the pipeline will find candidates.
+    status = "covered" if task_in.assigneeId else "unassigned"
+    task = Task(
+        id=f"task-{uuid.uuid4().hex[:8]}",
+        title=task_in.title,
+        priority=task_in.priority,
+        assignee_id=task_in.assigneeId,
+        deadline=task_in.deadline,
+        project_name=task_in.projectName,
+        status=status,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def delete_task(db: Session, task_id: str) -> bool:
+    """Delete a task and all its suggestions. Returns True if found and deleted."""
+    task = db.get(Task, task_id)
+    if not task:
+        return False
+    for s in db.exec(select(Suggestion).where(Suggestion.task_id == task_id)).all():
+        db.delete(s)
+    db.delete(task)
+    db.commit()
+    return True
+
+
+def unassign_task(db: Session, task_id: str) -> Task | None:
+    """
+    Remove the assignee from a task and set its status to 'unassigned'.
+    Clears existing suggestions so the pipeline can write fresh ones.
+    """
+    task = db.get(Task, task_id)
+    if not task:
+        return None
+    task.assignee_id = None
+    task.status = "unassigned"
+    # Clear stale suggestions — pipeline will repopulate
+    for s in db.exec(select(Suggestion).where(Suggestion.task_id == task_id)).all():
+        db.delete(s)
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
 
 def get_all_tasks(db: Session, status_filter: str | None = None) -> list[TaskOut]:
     stmt = select(Task)

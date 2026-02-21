@@ -35,6 +35,10 @@ interface AppStore {
   // "Schedule tomorrow" dimmed tasks
   scheduledTasks: Record<string, boolean>;
   setScheduled: (taskId: string) => void;
+
+  // Tracks tasks whose skill pipeline is currently running in the background
+  pipelineRunning: Record<string, boolean>;
+  setPipelineRunning: (taskId: string, running: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -76,5 +80,11 @@ export const useAppStore = create<AppStore>((set) => ({
   setScheduled: (taskId) =>
     set((state) => ({
       scheduledTasks: { ...state.scheduledTasks, [taskId]: true },
+    })),
+
+  pipelineRunning: {},
+  setPipelineRunning: (taskId, running) =>
+    set((state) => ({
+      pipelineRunning: { ...state.pipelineRunning, [taskId]: running },
     })),
 }));

@@ -13,7 +13,7 @@ export interface Task {
   id: string;
   title: string;
   priority: Priority;
-  assigneeId: string;
+  assigneeId: string | null;
   deadline: Date;
   projectName: string;
   status: TaskStatus;
@@ -47,4 +47,5 @@ export interface TeamMember {
   lastSynced: Date;
   weekAvailability: WeekAvailability;
   manuallyOverridden?: boolean;  // true when leave status was manually set via override
+  managerNotes?: string;
 }

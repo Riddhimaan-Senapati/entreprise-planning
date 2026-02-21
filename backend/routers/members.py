@@ -23,11 +23,13 @@ from crud import (
     get_member_row,
     reset_member_override,
     update_member_calendar_pct,
+    update_member_notes,
     update_member_override,
+    update_member_skills,
     update_member_week_availability,
 )
 from database import get_session
-from models import OverrideUpdate, TeamMemberOut
+from models import NotesUpdate, OverrideUpdate, SkillsUpdate, TeamMemberOut
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -74,6 +76,32 @@ def clear_member_override(member_id: str, db: Session = Depends(get_session)):
     restore the real computed availability.
     """
     row = reset_member_override(db, member_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return get_member_out(db, member_id)
+
+
+@router.patch("/{member_id}/skills", response_model=TeamMemberOut)
+def update_skills(
+    member_id: str,
+    body: SkillsUpdate,
+    db: Session = Depends(get_session),
+):
+    """Persist skills list for a team member."""
+    row = update_member_skills(db, member_id, body.skills)
+    if not row:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return get_member_out(db, member_id)
+
+
+@router.patch("/{member_id}/notes", response_model=TeamMemberOut)
+def update_notes(
+    member_id: str,
+    body: NotesUpdate,
+    db: Session = Depends(get_session),
+):
+    """Persist manager notes for a team member."""
+    row = update_member_notes(db, member_id, body.notes)
     if not row:
         raise HTTPException(status_code=404, detail="Member not found")
     return get_member_out(db, member_id)

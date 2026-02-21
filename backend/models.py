@@ -42,6 +42,7 @@ class TeamMember(SQLModel, table=True):
     manually_overridden: bool           = False
     ics_path:            Optional[str]  = None
     last_synced:         datetime       = Field(default_factory=datetime.utcnow)
+    manager_notes:       str            = ""
 
 
 class WeekAvailability(SQLModel, table=True):
@@ -60,13 +61,13 @@ class WeekAvailability(SQLModel, table=True):
 class Task(SQLModel, table=True):
     __tablename__ = "tasks"
 
-    id:           str      = Field(primary_key=True)
+    id:           str           = Field(primary_key=True)
     title:        str
-    priority:     str                   # "P0" | "P1" | "P2"
-    assignee_id:  str      = Field(foreign_key="team_members.id", index=True)
+    priority:     str                        # "P0" | "P1" | "P2"
+    assignee_id:  Optional[str] = Field(default=None, foreign_key="team_members.id", index=True)
     deadline:     datetime
     project_name: str
-    status:       str      = "at-risk"  # "at-risk" | "unassigned" | "covered"
+    status:       str           = "at-risk"  # "at-risk" | "unassigned" | "covered"
 
 
 class Suggestion(SQLModel, table=True):
@@ -109,7 +110,7 @@ class TaskOut(BaseModel):
     id:          str
     title:       str
     priority:    str
-    assigneeId:  str
+    assigneeId:  Optional[str]
     deadline:    datetime
     projectName: str
     status:      str
@@ -130,6 +131,7 @@ class TeamMemberOut(BaseModel):
     currentTasks:       list[TaskOut] = []
     icsLinked:          bool = False   # true when an ICS file is attached
     manuallyOverridden: bool = False   # true when leave status was manually set
+    managerNotes:       str  = ""
 
 
 class SummaryOut(BaseModel):
@@ -147,3 +149,19 @@ class StatusUpdate(BaseModel):
 
 class OverrideUpdate(BaseModel):
     leaveStatus: str  # "available" | "partial" | "ooo"
+
+
+class NotesUpdate(BaseModel):
+    notes: str
+
+
+class SkillsUpdate(BaseModel):
+    skills: list[str]
+
+
+class TaskCreate(BaseModel):
+    title:       str
+    priority:    str               # "P0" | "P1" | "P2"
+    assigneeId:  Optional[str] = None   # None → unassigned; provided → covered
+    deadline:    datetime
+    projectName: str

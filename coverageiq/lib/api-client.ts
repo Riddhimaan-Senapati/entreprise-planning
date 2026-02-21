@@ -24,6 +24,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`API ${res.status} ${res.statusText}: ${body}`);
   }
 
+  // 204 No Content (e.g. DELETE) — no body to parse
+  if (res.status === 204) return undefined as T;
+
   return res.json() as Promise<T>;
 }
 
@@ -101,12 +104,53 @@ export async function syncMemberCalendar(id: string): Promise<TeamMember> {
   return parseMember(raw);
 }
 
+export async function updateMemberNotes(id: string, notes: string): Promise<TeamMember> {
+  const raw = await apiFetch<ApiTeamMember>(`/members/${id}/notes`, {
+    method: 'PATCH',
+    body: JSON.stringify({ notes }),
+  });
+  return parseMember(raw);
+}
+
+export async function updateMemberSkills(id: string, skills: string[]): Promise<TeamMember> {
+  const raw = await apiFetch<ApiTeamMember>(`/members/${id}/skills`, {
+    method: 'PATCH',
+    body: JSON.stringify({ skills }),
+  });
+  return parseMember(raw);
+}
+
 /** Returns the raw ICS availability report (does not update DB). */
 export function fetchMemberAvailability(id: string) {
   return apiFetch<Record<string, unknown>>(`/members/${id}/availability`);
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
+
+export interface TaskCreatePayload {
+  title: string;
+  priority: 'P0' | 'P1' | 'P2';
+  assigneeId: string | null; // null → unassigned (pipeline finds candidates); provided → covered
+  deadline: string;          // ISO 8601 string
+  projectName: string;
+}
+
+export async function createTask(payload: TaskCreatePayload): Promise<Task> {
+  const raw = await apiFetch<ApiTask>('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return parseTask(raw);
+}
+
+export async function unassignTask(id: string): Promise<Task> {
+  const raw = await apiFetch<ApiTask>(`/tasks/${id}/unassign`, { method: 'PATCH' });
+  return parseTask(raw);
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  await apiFetch<void>(`/tasks/${id}`, { method: 'DELETE' });
+}
 
 export async function fetchTasks(status?: string): Promise<Task[]> {
   const q = status ? `?status=${encodeURIComponent(status)}` : '';

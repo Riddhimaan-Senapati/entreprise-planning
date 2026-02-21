@@ -1,14 +1,15 @@
 'use client';
 
+import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, Clock, Send } from 'lucide-react';
+import { CheckCircle2, Clock, Loader2, RefreshCw, Send, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ConfidenceRing from './ConfidenceRing';
 import { useTasks, useTeamMembers } from '@/hooks/use-api';
 import { Suggestion, Task, TeamMember } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { sendAvailabilityPing, updateTaskStatus } from '@/lib/api-client';
+import { sendAvailabilityPing, unassignTask, updateTaskStatus } from '@/lib/api-client';
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -123,10 +124,19 @@ function SuggestionCard({ suggestion, task, member, rank }: SuggestionCardProps)
         </div>
       </div>
 
-      {/* Context reason */}
-      <p className="text-sm text-muted-foreground italic leading-relaxed">
-        {suggestion.contextReason}
-      </p>
+      {/* Notes */}
+      <div className="space-y-2.5">
+        <div>
+          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">AI Note</p>
+          <p className="text-sm text-muted-foreground italic leading-relaxed">{suggestion.contextReason}</p>
+        </div>
+        {member.managerNotes && (
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">Manager Note</p>
+            <p className="text-sm text-foreground leading-relaxed">{member.managerNotes}</p>
+          </div>
+        )}
+      </div>
 
       {/* Pending ping banner */}
       {hasPingSent && (
@@ -182,9 +192,28 @@ function SuggestionCard({ suggestion, task, member, rank }: SuggestionCardProps)
 }
 
 export default function SuggestionPanel() {
-  const { selectedTaskId, taskStatusOverrides } = useAppStore();
-  const { data: tasks } = useTasks();
+  const { selectedTaskId, taskStatusOverrides, pipelineRunning, setPipelineRunning, setTaskStatus } = useAppStore();
+  const { data: tasks, refetch: refetchTasks } = useTasks();
   const { data: members } = useTeamMembers();
+
+  const task = (tasks ?? []).find((t) => t.id === selectedTaskId);
+  const taskSuggestionsLength = task?.suggestions.length ?? 0;
+
+  // Auto-poll every 4s while the pipeline is running for this task
+  useEffect(() => {
+    if (!selectedTaskId || !(pipelineRunning[selectedTaskId] ?? false)) return;
+    const id = setInterval(() => refetchTasks(), 4000);
+    return () => clearInterval(id);
+  }, [selectedTaskId, pipelineRunning, refetchTasks]);
+
+  // Auto-clear pipelineRunning when suggestions arrive
+  useEffect(() => {
+    if (!selectedTaskId || taskSuggestionsLength === 0) return;
+    if (pipelineRunning[selectedTaskId] ?? false) {
+      setPipelineRunning(selectedTaskId, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTaskId, taskSuggestionsLength]);
 
   if (!selectedTaskId) {
     return (
@@ -203,11 +232,31 @@ export default function SuggestionPanel() {
     );
   }
 
-  const task = (tasks ?? []).find((t) => t.id === selectedTaskId);
   if (!task) return null;
 
   const currentStatus = taskStatusOverrides[selectedTaskId] ?? task.status;
   const isCovered = currentStatus === 'covered';
+  const isRunning = pipelineRunning[selectedTaskId] ?? false;
+
+  const handleUnassign = async () => {
+    setTaskStatus(task.id, 'unassigned');    // optimistic
+    setPipelineRunning(task.id, true);
+    try {
+      await unassignTask(task.id);
+      toast.info('Assignee removed — scoring candidates…', {
+        description: 'The skill pipeline is running in the background. Refresh in ~30s to see suggestions.',
+        duration: 6000,
+      });
+    } catch {
+      toast.error('Failed to unassign task.');
+      setPipelineRunning(task.id, false);
+    }
+  };
+
+  const handleRefreshSuggestions = () => {
+    setPipelineRunning(task.id, false);
+    refetchTasks();
+  };
 
   const sortedSuggestions = [...task.suggestions].sort(
     (a, b) => b.skillMatchPct - a.skillMatchPct
@@ -218,37 +267,96 @@ export default function SuggestionPanel() {
       {/* Panel header */}
       <div className="p-5 rounded-xl bg-bg-surface border border-border">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground font-mono mb-1">{task.projectName}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground font-mono mb-1 truncate">{task.projectName}</p>
             <h3 className="text-lg font-heading font-bold text-foreground leading-tight">
               {task.title}
             </h3>
+            {task.assigneeId && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Assigned to{' '}
+                <span className="text-foreground font-medium">
+                  {(members ?? []).find((m) => m.id === task.assigneeId)?.name ?? task.assigneeId}
+                </span>
+              </p>
+            )}
           </div>
-          {isCovered ? (
-            <span className="flex-shrink-0 text-xs font-mono px-2.5 py-1 rounded-full bg-status-green/10 text-status-green border border-status-green/30">
-              Covered ✓
-            </span>
-          ) : (
-            <span className="flex-shrink-0 text-xs font-mono px-2.5 py-1 rounded-full bg-status-red/10 text-status-red border border-status-red/30">
-              {task.priority} · At Risk
-            </span>
-          )}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            {isCovered ? (
+              <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-status-green/10 text-status-green border border-status-green/30">
+                Covered ✓
+              </span>
+            ) : (
+              <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-status-red/10 text-status-red border border-status-red/30">
+                {task.priority} · {currentStatus === 'unassigned' ? 'Unassigned' : 'At Risk'}
+              </span>
+            )}
+            {/* Unassign button — shown when there is an assignee */}
+            {task.assigneeId && (
+              <button
+                onClick={handleUnassign}
+                className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-status-amber transition-colors"
+                title="Remove assignee and re-score candidates"
+              >
+                <UserMinus className="w-3 h-3" />
+                Unassign
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Pipeline running banner */}
+      {isRunning && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-bg-surface border border-border">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+            Scoring candidates with Gemini AI…
+          </div>
+          <button
+            onClick={handleRefreshSuggestions}
+            className="flex items-center gap-1 text-xs font-mono text-status-green hover:text-status-green/80 transition-colors flex-shrink-0"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Refresh
+          </button>
+        </div>
+      )}
+
       {/* Suggestions */}
-      {!isCovered && (
+      {!isCovered && !isRunning && (
         <>
-          <p className="text-sm text-muted-foreground font-medium px-1">
-            Suggested coverage — sorted by skill match
-          </p>
-          {sortedSuggestions.map((s, i) => {
-            const member = (members ?? []).find((m) => m.id === s.memberId);
-            if (!member) return null;
-            return (
-              <SuggestionCard key={s.memberId} suggestion={s} task={task} member={member} rank={i} />
-            );
-          })}
+          {sortedSuggestions.length > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground font-medium px-1">
+                Suggested coverage — sorted by skill match
+              </p>
+              {sortedSuggestions.map((s, i) => {
+                const member = (members ?? []).find((m) => m.id === s.memberId);
+                if (!member) return null;
+                return (
+                  <SuggestionCard key={s.memberId} suggestion={s} task={task} member={member} rank={i} />
+                );
+              })}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <Loader2 className="w-8 h-8 text-muted-foreground mb-3 animate-spin" />
+              <p className="text-sm font-heading font-semibold text-foreground">
+                Scoring candidates…
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 mb-4">
+                The skill pipeline is running in the background.
+              </p>
+              <button
+                onClick={() => refetchTasks()}
+                className="flex items-center gap-1.5 text-xs font-mono text-status-green hover:text-status-green/80 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh suggestions
+              </button>
+            </div>
+          )}
         </>
       )}
 

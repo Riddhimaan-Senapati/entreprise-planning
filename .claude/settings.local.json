@@ -17,7 +17,22 @@
       "Bash(curl:*)",
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
-      "Bash(cd /c/Users/riddh/entreprise-planning/coverageiq && npx tsc --noEmit 2>&1)"
+      "Bash(cd /c/Users/riddh/entreprise-planning/coverageiq && npx tsc --noEmit 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && git add coverageiq/components/dashboard/RiskChipStrip.tsx coverageiq/components/dashboard/Sidebar.tsx coverageiq/components/dashboard/TaskList.tsx coverageiq/components/dashboard/TeamGrid.tsx && git status 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && git commit -m \"$\\(cat <<'EOF'\nMerge delete_mock_data into main: API layer + UI improvements combined\n\n- Frontend: keeps origin/main's UI \\(collapsible sidebar, RiskCard grid,\n  compact SummaryBar, 6 team filters, deadline-sorted TaskList, loading\n  skeletons, green color theme, larger SuggestionCards\\)\n- Data layer: replaces all mock-data imports with API hooks \\(useTeamMembers,\n  useTasks, useSummary\\) from delete_mock_data\n- Backend: delete_mock_data version \\(manually_overridden persistence,\n  DELETE /members/{id}/override, JSON seed data, updated crud/models\\)\n- mock-data.ts deleted\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\" 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && gh pr list 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && gh pr view 2 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && gh api repos/Riddhimaan-Senapati/entreprise-planning/pulls/2 --jq '.mergeable, .mergeable_state' 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && git push origin main 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && git checkout delete_mock_data && git merge main --ff-only 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && git push origin delete_mock_data 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && sleep 3 && gh api repos/Riddhimaan-Senapati/entreprise-planning/pulls/2 --jq '.mergeable, .mergeable_state' 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && sleep 8 && gh api repos/Riddhimaan-Senapati/entreprise-planning/pulls/2 --jq '.mergeable, .mergeable_state' 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && sleep 15 && gh api repos/Riddhimaan-Senapati/entreprise-planning/pulls/2 --jq '.mergeable, .mergeable_state, .head.sha, .base.sha' 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && sleep 20 && gh api repos/Riddhimaan-Senapati/entreprise-planning/pulls/2 --jq '{mergeable: .mergeable, state: .mergeable_state, head: .head.sha[0:7], base: .base.sha[0:7]}' 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning && gh pr view 2 --json headRefOid,baseRefOid,headRefName,baseRefName,mergeable,mergeStateStatus 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && rm -f coverageiq.db && python seed.py 2>&1)",
+      "Bash(head:*)"
     ]
   }
 }
