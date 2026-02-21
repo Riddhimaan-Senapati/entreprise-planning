@@ -1,6 +1,7 @@
 'use client';
 
-import { teamMembers, atRiskTasks } from '@/lib/mock-data';
+import { useTeamMembers, useTasks } from '@/hooks/use-api';
+import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
 
 interface StatBlockProps {
@@ -28,15 +29,29 @@ function StatBlock({ label, value, colorClass }: StatBlockProps) {
 }
 
 export default function SummaryBar() {
-  const ooo = teamMembers.filter((m) => m.isOOO).length;
-  const partial = teamMembers.filter(
-    (m) => !m.isOOO && m.dataSources.leaveStatus === 'partial'
-  ).length;
-  const fullyAvailable = teamMembers.filter(
-    (m) => !m.isOOO && m.dataSources.leaveStatus === 'available'
-  ).length;
-  const criticalAtRisk = atRiskTasks.filter((t) => t.priority === 'P0' || t.priority === 'P1').length;
-  const unresolved = atRiskTasks.filter((t) => t.status !== 'covered').length;
+  const { data: members } = useTeamMembers();
+  const { data: tasks } = useTasks();
+  const { overrides, taskStatusOverrides } = useAppStore();
+
+  // Effective member leave status: Zustand override first, then DB value
+  function effectiveMemberStatus(memberId: string, dbLeaveStatus: string) {
+    const override = overrides.find((o) => o.memberId === memberId);
+    return override?.status ?? dbLeaveStatus;
+  }
+
+  // Effective task status: Zustand override first, then DB value
+  function effectiveTaskStatus(taskId: string, dbStatus: string) {
+    return taskStatusOverrides[taskId] ?? dbStatus;
+  }
+
+  const memberList = members ?? [];
+  const taskList = tasks ?? [];
+
+  const ooo             = memberList.filter((m) => effectiveMemberStatus(m.id, m.dataSources.leaveStatus) === 'ooo').length;
+  const partial         = memberList.filter((m) => effectiveMemberStatus(m.id, m.dataSources.leaveStatus) === 'partial').length;
+  const fullyAvailable  = memberList.filter((m) => effectiveMemberStatus(m.id, m.dataSources.leaveStatus) === 'available').length;
+  const criticalAtRisk  = taskList.filter((t) => (t.priority === 'P0' || t.priority === 'P1') && effectiveTaskStatus(t.id, t.status) !== 'covered').length;
+  const unresolved      = taskList.filter((t) => effectiveTaskStatus(t.id, t.status) !== 'covered').length;
 
   return (
     <div className="flex bg-bg-surface border border-border rounded-xl divide-x divide-border overflow-hidden">

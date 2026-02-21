@@ -21,8 +21,10 @@ from crud import (
     get_all_members,
     get_member_out,
     get_member_row,
+    reset_member_override,
     update_member_calendar_pct,
     update_member_override,
+    update_member_week_availability,
 )
 from database import get_session
 from models import OverrideUpdate, TeamMemberOut
@@ -59,6 +61,19 @@ def override_member(
             detail=f"leaveStatus must be one of {sorted(valid)}",
         )
     row = update_member_override(db, member_id, body.leaveStatus)
+    if not row:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return get_member_out(db, member_id)
+
+
+@router.delete("/{member_id}/override", response_model=TeamMemberOut)
+def clear_member_override(member_id: str, db: Session = Depends(get_session)):
+    """
+    Remove a manual leave-status override, resetting the member to 'available'.
+    If the member has an ICS file linked, call /calendar/sync afterwards to
+    restore the real computed availability.
+    """
+    row = reset_member_override(db, member_id)
     if not row:
         raise HTTPException(status_code=404, detail="Member not found")
     return get_member_out(db, member_id)
@@ -106,4 +121,14 @@ def sync_member_calendar(member_id: str, db: Session = Depends(get_session)):
         )
     report = get_availability_report(ics_path=ics_path)
     update_member_calendar_pct(db, member_id, report["availability_pct"])
+
+    # Also persist per-day availability so weekAvailability reflects real calendar
+    day_map = {
+        "Monday": "monday", "Tuesday": "tuesday", "Wednesday": "wednesday",
+        "Thursday": "thursday", "Friday": "friday",
+    }
+    per_day = {day_map[d["weekday"]]: round(d["availability_pct"])
+               for d in report["per_day"] if d["weekday"] in day_map}
+    update_member_week_availability(db, member_id, per_day)
+
     return get_member_out(db, member_id)

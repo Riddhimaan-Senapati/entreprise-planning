@@ -38,9 +38,10 @@ class TeamMember(SQLModel, table=True):
     calendar_pct:     float          = Field(ge=0, le=100, default=0.0)
     task_load_hours:  float          = Field(ge=0, default=0.0)
     leave_status:     str            = "available"   # "available" | "partial" | "ooo"
-    is_ooo:           bool           = False
-    ics_path:         Optional[str]  = None
-    last_synced:      datetime       = Field(default_factory=datetime.utcnow)
+    is_ooo:              bool           = False
+    manually_overridden: bool           = False
+    ics_path:            Optional[str]  = None
+    last_synced:         datetime       = Field(default_factory=datetime.utcnow)
 
 
 class WeekAvailability(SQLModel, table=True):
@@ -126,8 +127,9 @@ class TeamMemberOut(BaseModel):
     isOOO:            bool
     lastSynced:       datetime
     weekAvailability: WeekAvailabilityOut
-    currentTasks:     list[TaskOut] = []
-    icsLinked:        bool = False   # true when an ICS file is attached
+    currentTasks:       list[TaskOut] = []
+    icsLinked:          bool = False   # true when an ICS file is attached
+    manuallyOverridden: bool = False   # true when leave status was manually set
 
 
 class SummaryOut(BaseModel):

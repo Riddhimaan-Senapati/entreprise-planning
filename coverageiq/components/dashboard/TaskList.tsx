@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react';
 import { formatDistanceToNow, differenceInHours } from 'date-fns';
-import { atRiskTasks } from '@/lib/mock-data';
-import { teamMembers } from '@/lib/mock-data';
+import { useTasks, useTeamMembers } from '@/hooks/use-api';
 import { Task } from '@/lib/types';
 import { cn, getPriorityColor } from '@/lib/utils';
 import { useAppStore } from '@/store';
@@ -37,6 +36,8 @@ function DeadlineLabel({ deadline }: { deadline: Date }) {
 
 export default function TaskList({ initialTaskId }: TaskListProps) {
   const { selectedTaskId, setSelectedTaskId, priorityFilter, setPriorityFilter, taskStatusOverrides, scheduledTasks } = useAppStore();
+  const { data: tasks } = useTasks();
+  const { data: members } = useTeamMembers();
 
   // Auto-select from URL param on mount
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
     }
   }, [initialTaskId, setSelectedTaskId]);
 
-  const sorted = [...atRiskTasks].sort(
+  const sorted = [...(tasks ?? [])].sort(
     (a, b) => a.deadline.getTime() - b.deadline.getTime()
   );
 
@@ -88,7 +89,7 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
           const isSelected = selectedTaskId === task.id;
           const status = taskStatusOverrides[task.id] ?? task.status;
           const isScheduled = scheduledTasks[task.id];
-          const assignee = teamMembers.find((m) => m.id === task.assigneeId);
+          const assignee = (members ?? []).find((m) => m.id === task.assigneeId);
 
           return (
             <button

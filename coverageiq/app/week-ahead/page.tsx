@@ -1,6 +1,8 @@
+'use client';
+
 import WeekChart from '@/components/dashboard/WeekChart';
 import ConfidenceRing from '@/components/dashboard/ConfidenceRing';
-import { teamMembers } from '@/lib/mock-data';
+import { useTeamMembers } from '@/hooks/use-api';
 import { getConfidenceColor } from '@/lib/utils';
 import { TeamMember } from '@/lib/types';
 
@@ -57,8 +59,24 @@ function WeekRow({ member, index }: { member: TeamMember; index: number }) {
   );
 }
 
+function buildWeekChartData(members: TeamMember[]) {
+  const keys: { label: string; key: DayKey }[] = [
+    { label: 'Mon', key: 'monday' },
+    { label: 'Tue', key: 'tuesday' },
+    { label: 'Wed', key: 'wednesday' },
+    { label: 'Thu', key: 'thursday' },
+    { label: 'Fri', key: 'friday' },
+  ];
+  return keys.map(({ label, key }) => ({
+    day: label,
+    available: members.filter((m) => m.weekAvailability[key] >= 50).length,
+  }));
+}
+
 export default function WeekAheadPage() {
-  const sorted = [...teamMembers].sort((a, b) => b.confidenceScore - a.confidenceScore);
+  const { data: members } = useTeamMembers();
+  const sorted = [...(members ?? [])].sort((a, b) => b.confidenceScore - a.confidenceScore);
+  const weekChartData = buildWeekChartData(members ?? []);
 
   return (
     <div className="p-6 pb-20 md:pb-6 space-y-6 max-w-[900px]">
@@ -76,7 +94,7 @@ export default function WeekAheadPage() {
           <h2 className="text-sm font-medium text-foreground">Available Headcount by Day</h2>
           <span className="text-xs text-muted-foreground font-mono">Mon–Fri</span>
         </div>
-        <WeekChart />
+        <WeekChart data={weekChartData} />
       </div>
 
       {/* Day header row */}

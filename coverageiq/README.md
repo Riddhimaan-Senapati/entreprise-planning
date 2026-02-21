@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CoverageIQ — Frontend
 
-## Getting Started
+Next.js 15 frontend for the CoverageIQ team coverage intelligence app.
 
-First, run the development server:
+Shows real-time team availability, flags at-risk tasks, and surfaces AI-ranked
+reassignment suggestions — all driven by the FastAPI backend.
+
+> **The backend must be running** before you open the app. See setup below.
+
+---
+
+## Prerequisites
+
+- Node.js 18+
+- The backend running on `http://localhost:8000` (see `../backend/README.md`)
+
+---
+
+## Setup
+
+```bash
+# Install dependencies
+npm install
+
+# (Optional) configure the backend URL
+# Only needed if the backend runs on a different port or host
+cp .env.local.example .env.local
+# Edit NEXT_PUBLIC_API_URL if required (defaults to http://localhost:8000)
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Base URL of the FastAPI backend |
+
+No `.env.local` is required if the backend is on `localhost:8000`.
+
+---
+
+## Running
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open **http://localhost:3000** in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pages
 
-## Learn More
+| Route | Description |
+|---|---|
+| `/overview` | Today's team snapshot — summary stats, at-risk task chips, member grid |
+| `/task-command` | Triage at-risk tasks — select a task to see AI-ranked coverage suggestions |
+| `/week-ahead` | Per-member day-by-day availability heat map + headcount chart |
+| `/team` | Team directory (coming soon) |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+coverageiq/
+├── app/
+│   ├── layout.tsx               # Root layout — fonts, sidebar, toast provider
+│   ├── overview/page.tsx        # Overview page
+│   ├── task-command/
+│   │   ├── page.tsx             # Server wrapper with Suspense
+│   │   └── TaskCommandClient.tsx
+│   ├── week-ahead/page.tsx      # Week-ahead page
+│   └── team/page.tsx            # Placeholder
+├── components/dashboard/
+│   ├── SummaryBar.tsx           # OOO / partial / available / risk counts
+│   ├── RiskChipStrip.tsx        # At-risk task chips
+│   ├── TeamGrid.tsx             # Member card grid with filters
+│   ├── TaskList.tsx             # Prioritised task list with filter pills
+│   ├── SuggestionPanel.tsx      # AI suggestion cards + action buttons
+│   ├── WeekChart.tsx            # Available headcount area chart
+│   ├── PersonCard.tsx           # Individual member card with confidence ring
+│   ├── ConfidenceRing.tsx       # Animated SVG confidence ring
+│   └── Sidebar.tsx              # Navigation + sync status
+├── hooks/use-api.ts             # useFetch, useTeamMembers, useTasks, useSummary …
+├── lib/
+│   ├── api-client.ts            # Typed fetch wrappers for all backend endpoints
+│   ├── types.ts                 # Shared TypeScript interfaces
+│   └── utils.ts                 # cn, colour helpers, SVG ring math
+└── store/index.ts               # Zustand store — selected task, filters, overrides
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Data flow
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All data comes from the FastAPI backend — there is no local mock data.
+
+```
+Backend (FastAPI :8000)
+  └── GET /members   →  useTeamMembers()  →  TeamGrid, WeekAheadPage, SuggestionPanel
+  └── GET /tasks     →  useTasks()        →  TaskList, RiskChipStrip, SuggestionPanel
+  └── GET /summary   →  useSummary()      →  SummaryBar, Sidebar, StaleBanner
+  └── PATCH /members/{id}/override        →  useMemberOverride() (PersonCard menu)
+  └── PATCH /tasks/{id}/status            →  useTaskStatusUpdate() (Reassign button)
+  └── POST  /members/{id}/calendar/sync   →  useCalendarSync()
+  └── POST  /ping                         →  sendAvailabilityPing() (Check availability button)
+```
+
+---
+
+## Building for production
+
+```bash
+npm run build
+npm start
+```

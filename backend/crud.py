@@ -89,6 +89,7 @@ def _member_out(member: TeamMember, db: Session) -> TeamMemberOut:
         weekAvailability=_week_avail_out(week_avail),
         currentTasks=[_task_out(t, db) for t in current_tasks],
         icsLinked=bool(member.ics_path),
+        manuallyOverridden=member.manually_overridden,
     )
 
 
@@ -106,6 +107,28 @@ def get_member_row(db: Session, member_id: str) -> TeamMember | None:
 def get_member_out(db: Session, member_id: str) -> TeamMemberOut | None:
     row = db.get(TeamMember, member_id)
     return _member_out(row, db) if row else None
+
+
+def update_member_week_availability(
+    db: Session,
+    member_id: str,
+    per_day: dict,          # {"monday": int, "tuesday": int, ...}
+) -> WeekAvailability | None:
+    """Persist per-day availability scores for a member (from ICS calculation)."""
+    row = db.exec(
+        select(WeekAvailability).where(WeekAvailability.member_id == member_id)
+    ).first()
+    if not row:
+        return None
+    row.monday    = per_day.get("monday",    row.monday)
+    row.tuesday   = per_day.get("tuesday",   row.tuesday)
+    row.wednesday = per_day.get("wednesday", row.wednesday)
+    row.thursday  = per_day.get("thursday",  row.thursday)
+    row.friday    = per_day.get("friday",    row.friday)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def update_member_calendar_pct(
@@ -160,6 +183,29 @@ def update_member_override(
 
     member.leave_status = leave_status
     member.is_ooo = leave_status == "ooo"
+    member.manually_overridden = True
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+def reset_member_override(
+    db: Session,
+    member_id: str,
+) -> TeamMember | None:
+    """
+    Clear a manual override: restore leave_status to 'available', is_ooo to False,
+    and clear the manually_overridden flag.  If the member has an ICS file linked,
+    callers should follow up with a calendar/sync to restore the real computed status.
+    """
+    member = db.get(TeamMember, member_id)
+    if not member:
+        return None
+
+    member.leave_status = "available"
+    member.is_ooo = False
+    member.manually_overridden = False
     db.add(member)
     db.commit()
     db.refresh(member)

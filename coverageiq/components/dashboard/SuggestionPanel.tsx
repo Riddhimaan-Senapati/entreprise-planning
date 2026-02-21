@@ -4,11 +4,11 @@ import { toast } from 'sonner';
 import { CheckCircle2, Clock, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ConfidenceRing from './ConfidenceRing';
-import { atRiskTasks, teamMembers } from '@/lib/mock-data';
-import { Suggestion, Task } from '@/lib/types';
+import { useTasks, useTeamMembers } from '@/hooks/use-api';
+import { Suggestion, Task, TeamMember } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { sendAvailabilityPing } from '@/lib/api-client';
+import { sendAvailabilityPing, updateTaskStatus } from '@/lib/api-client';
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -17,14 +17,12 @@ function getInitials(name: string) {
 interface SuggestionCardProps {
   suggestion: Suggestion;
   task: Task;
+  member: TeamMember;
   rank: number;
 }
 
-function SuggestionCard({ suggestion, task, rank }: SuggestionCardProps) {
-  const member = teamMembers.find((m) => m.id === suggestion.memberId);
+function SuggestionCard({ suggestion, task, member, rank }: SuggestionCardProps) {
   const { setTaskStatus, setPingSent, setScheduled, pingSent, scheduledTasks } = useAppStore();
-
-  if (!member) return null;
 
   // Keyed by "taskId:memberId" — asking someone about Task A doesn't affect their button on Task B
   const pingKey = `${task.id}:${member.id}`;
@@ -32,7 +30,8 @@ function SuggestionCard({ suggestion, task, rank }: SuggestionCardProps) {
   const isTaskScheduled = scheduledTasks[task.id];
 
   const handleReassign = () => {
-    setTaskStatus(task.id, 'covered');
+    setTaskStatus(task.id, 'covered');                    // optimistic
+    updateTaskStatus(task.id, 'covered').catch(() => {}); // persist
     toast.success(`Task reassigned to ${member.name}`, {
       description: `${member.name} is now the owner. The task is marked covered.`,
       duration: 4000,
@@ -70,7 +69,7 @@ function SuggestionCard({ suggestion, task, rank }: SuggestionCardProps) {
   };
 
   const handleSchedule = () => {
-    setScheduled(taskId);
+    setScheduled(task.id);
     toast(`Deferred to tomorrow`, {
       description: "This task moves to tomorrow's queue and is dimmed in the list.",
       duration: 3000,
@@ -184,6 +183,8 @@ function SuggestionCard({ suggestion, task, rank }: SuggestionCardProps) {
 
 export default function SuggestionPanel() {
   const { selectedTaskId, taskStatusOverrides } = useAppStore();
+  const { data: tasks } = useTasks();
+  const { data: members } = useTeamMembers();
 
   if (!selectedTaskId) {
     return (
@@ -202,7 +203,7 @@ export default function SuggestionPanel() {
     );
   }
 
-  const task = atRiskTasks.find((t) => t.id === selectedTaskId);
+  const task = (tasks ?? []).find((t) => t.id === selectedTaskId);
   if (!task) return null;
 
   const currentStatus = taskStatusOverrides[selectedTaskId] ?? task.status;
@@ -241,9 +242,13 @@ export default function SuggestionPanel() {
           <p className="text-sm text-muted-foreground font-medium px-1">
             Suggested coverage — sorted by skill match
           </p>
-          {sortedSuggestions.map((s, i) => (
-            <SuggestionCard key={s.memberId} suggestion={s} task={task} rank={i} />
-          ))}
+          {sortedSuggestions.map((s, i) => {
+            const member = (members ?? []).find((m) => m.id === s.memberId);
+            if (!member) return null;
+            return (
+              <SuggestionCard key={s.memberId} suggestion={s} task={task} member={member} rank={i} />
+            );
+          })}
         </>
       )}
 

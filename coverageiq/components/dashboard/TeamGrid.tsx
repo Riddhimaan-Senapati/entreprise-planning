@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { teamMembers, atRiskTasks } from '@/lib/mock-data';
+import { useTeamMembers, useTasks } from '@/hooks/use-api';
 import PersonCard from './PersonCard';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
+import type { TeamMember } from '@/lib/types';
 
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All Teams' },
@@ -20,63 +21,64 @@ type FilterKey = (typeof FILTER_OPTIONS)[number]['key'];
 export default function TeamGrid() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const { overrides } = useAppStore();
+  const { data: members } = useTeamMembers();
+  const { data: tasks } = useTasks();
 
-  const atRiskMemberIds = new Set(atRiskTasks.map((t) => t.assigneeId));
+  const atRiskMemberIds = new Set((tasks ?? []).map((t) => t.assigneeId));
 
-  // Compute the effective leave status for a member, respecting manual overrides
-  function effectiveLeaveStatus(memberId: string, baseIsOOO: boolean) {
-    const override = overrides.find((o) => o.memberId === memberId);
+  // Compute the effective leave status for a member, respecting manual overrides.
+  // Falls back to member.dataSources.leaveStatus so persisted 'partial' / 'ooo' values
+  // survive page reloads (leaveStatus in DB already reflects the last override or ICS sync).
+  function effectiveLeaveStatus(member: TeamMember) {
+    const override = overrides.find((o) => o.memberId === member.id);
     if (override) return override.status;
-    return baseIsOOO ? 'ooo' : 'available';
+    return member.dataSources.leaveStatus;
   }
 
   // Availability score used for sorting: overrides to 'ooo' → 0, 'partial' → 50% penalty
-  function effectiveSortScore(memberId: string, confidenceScore: number, baseIsOOO: boolean) {
-    const status = effectiveLeaveStatus(memberId, baseIsOOO);
+  function effectiveSortScore(member: TeamMember) {
+    const status = effectiveLeaveStatus(member);
     if (status === 'ooo') return 0;
-    if (status === 'partial') return Math.round(confidenceScore * 0.5);
-    return confidenceScore;
+    if (status === 'partial') return Math.round(member.confidenceScore * 0.5);
+    return member.confidenceScore;
   }
 
   const displayed = (() => {
-    let members = [...teamMembers];
+    let list = [...(members ?? [])];
 
     if (filter === 'risks') {
-      // Show members assigned to at-risk tasks, or effectively OOO after overrides
-      members = members.filter(
+      list = list.filter(
         (m) =>
           atRiskMemberIds.has(m.id) ||
-          effectiveLeaveStatus(m.id, m.isOOO) === 'ooo'
+          effectiveLeaveStatus(m) === 'ooo'
       );
     }
 
     if (filter === 'availability') {
-      members = members.sort(
-        (a, b) =>
-          effectiveSortScore(b.id, b.confidenceScore, b.isOOO) -
-          effectiveSortScore(a.id, a.confidenceScore, a.isOOO)
+      list = list.sort(
+        (a, b) => effectiveSortScore(b) - effectiveSortScore(a)
       );
     }
 
     if (filter === 'task_load') {
-      members = members.sort(
+      list = list.sort(
         (a, b) => b.dataSources.taskLoadHours - a.dataSources.taskLoadHours
       );
     }
 
     if (filter === 'calendar') {
-      members = members.sort(
+      list = list.sort(
         (a, b) => b.dataSources.calendarPct - a.dataSources.calendarPct
       );
     }
 
     if (filter === 'leave') {
-      members = members.filter(
-        (m) => m.dataSources.leaveStatus !== 'available' || effectiveLeaveStatus(m.id, m.isOOO) === 'ooo'
+      list = list.filter(
+        (m) => effectiveLeaveStatus(m) !== 'available'
       );
     }
 
-    return members;
+    return list;
   })();
 
   return (

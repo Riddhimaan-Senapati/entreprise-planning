@@ -10,7 +10,14 @@
       "Bash(tail:*)",
       "Bash(cd /c/Users/riddh/entreprise-planning/backend && python -c \"import main; print\\('App imported OK'\\)\" 2>&1)",
       "Bash(cd /c/Users/riddh/entreprise-planning/backend && python score_skills.py --dry-run 2>&1)",
-      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python score_skills.py 2>&1)"
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python score_skills.py 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python calendar_availability.py --ics dummy_maya_calendar.ics --start 2026-02-23 --end 2026-02-28 --json 2>&1)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && pip install icalendar recurring-ical-events -q && python calendar_availability.py --ics dummy_maya_calendar.ics --start 2026-02-23 --end 2026-02-28 --json 2>&1)",
+      "Bash(cd:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/coverageiq && npx tsc --noEmit 2>&1)"
     ]
   }
 }

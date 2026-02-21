@@ -1,13 +1,18 @@
+'use client';
+
 import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle } from 'lucide-react';
 import SummaryBar from '@/components/dashboard/SummaryBar';
 import RiskChipStrip from '@/components/dashboard/RiskChipStrip';
 import TeamGrid from '@/components/dashboard/TeamGrid';
-import { lastSynced } from '@/lib/mock-data';
+import { useSummary } from '@/hooks/use-api';
 
 function StaleBanner() {
-  const diffMs = Date.now() - lastSynced.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
+  const { data: summary } = useSummary();
+  if (!summary) return null;
+
+  const lastSynced = new Date(summary.lastSynced);
+  const diffHours = (Date.now() - lastSynced.getTime()) / (1000 * 60 * 60);
   if (diffHours <= 2) return null;
 
   return (

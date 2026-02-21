@@ -1,0 +1,86 @@
+[
+  {
+    "id": "task-001",
+    "title": "Auth service migration to OAuth 2.0",
+    "priority": "P0",
+    "assignee_id": "mem-003",
+    "deadline_hours": 26,
+    "project_name": "Platform / Core Auth",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-007", "skill_match_pct": 94, "workload_pct": 29, "context_reason": "Suggested because Jordan has OAuth & Node.js expertise and is 71% free today"},
+      {"member_id": "mem-012", "skill_match_pct": 81, "workload_pct": 45, "context_reason": "Maya built the original auth layer and has 55% capacity available"},
+      {"member_id": "mem-001", "skill_match_pct": 68, "workload_pct": 62, "context_reason": "Alex has backend security experience and is partially available this sprint"}
+    ]
+  },
+  {
+    "id": "task-002",
+    "title": "Production incident: payment gateway timeout",
+    "priority": "P0",
+    "assignee_id": "mem-009",
+    "deadline_hours": 8,
+    "project_name": "Payments / Gateway",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-015", "skill_match_pct": 88, "workload_pct": 35, "context_reason": "Sam has Stripe API experience and their afternoon is clear"},
+      {"member_id": "mem-004", "skill_match_pct": 76, "workload_pct": 50, "context_reason": "Priya worked on the original gateway integration last quarter"},
+      {"member_id": "mem-019", "skill_match_pct": 70, "workload_pct": 40, "context_reason": "Chris has incident response experience and is on-call this week"}
+    ]
+  },
+  {
+    "id": "task-003",
+    "title": "Dashboard performance regression fix",
+    "priority": "P1",
+    "assignee_id": "mem-006",
+    "deadline_hours": 48,
+    "project_name": "Frontend / Analytics",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-012", "skill_match_pct": 91, "workload_pct": 38, "context_reason": "Maya has React profiling expertise and is 62% available today"},
+      {"member_id": "mem-021", "skill_match_pct": 79, "workload_pct": 55, "context_reason": "Dana has worked on Recharts optimization and has 45% bandwidth"},
+      {"member_id": "mem-002", "skill_match_pct": 65, "workload_pct": 70, "context_reason": "Lee identified similar regressions on the mobile app last month"}
+    ]
+  },
+  {
+    "id": "task-004",
+    "title": "Design system token migration (Q1 deadline)",
+    "priority": "P1",
+    "assignee_id": "mem-016",
+    "deadline_hours": 72,
+    "project_name": "Design / System",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-023", "skill_match_pct": 96, "workload_pct": 22, "context_reason": "Aria owns the Figma token library and has 78% availability this week"},
+      {"member_id": "mem-011", "skill_match_pct": 82, "workload_pct": 48, "context_reason": "Felix contributed to the original token spec and is partially free"},
+      {"member_id": "mem-018", "skill_match_pct": 71, "workload_pct": 60, "context_reason": "Zoe has CSS variable migration experience from the v2 rebrand"}
+    ]
+  },
+  {
+    "id": "task-005",
+    "title": "Q1 OKR report: product metrics compile",
+    "priority": "P2",
+    "assignee_id": "mem-022",
+    "deadline_hours": 120,
+    "project_name": "Product / Strategy",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-014", "skill_match_pct": 85, "workload_pct": 30, "context_reason": "Nadia owns the metrics dashboard and can pull this in ~2 hours"},
+      {"member_id": "mem-008", "skill_match_pct": 74, "workload_pct": 42, "context_reason": "Evan prepared last quarter's OKR deck and knows the format"},
+      {"member_id": "mem-020", "skill_match_pct": 60, "workload_pct": 55, "context_reason": "Taylor has data analytics skills and bandwidth mid-week"}
+    ]
+  },
+  {
+    "id": "task-006",
+    "title": "Accessibility audit: WCAG 2.2 compliance",
+    "priority": "P2",
+    "assignee_id": "mem-017",
+    "deadline_hours": 168,
+    "project_name": "Design / Accessibility",
+    "status": "at-risk",
+    "suggestions": [
+      {"member_id": "mem-011", "skill_match_pct": 88, "workload_pct": 35, "context_reason": "Felix is a11y-certified and has 65% availability next week"},
+      {"member_id": "mem-024", "skill_match_pct": 77, "workload_pct": 50, "context_reason": "Riley completed WCAG 2.1 audit last cycle and knows the tools"},
+      {"member_id": "mem-013", "skill_match_pct": 62, "workload_pct": 68, "context_reason": "Morgan has screen-reader testing experience from the mobile project"}
+    ]
+  }
+]

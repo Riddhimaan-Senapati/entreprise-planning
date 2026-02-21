@@ -18,6 +18,7 @@ import {
   fetchSummary,
   syncMemberCalendar,
   updateMemberOverride,
+  deleteOverride,
   updateTaskStatus,
   type Summary,
 } from '@/lib/api-client';
@@ -109,6 +110,31 @@ export function useCalendarSync() {
     setState({ data: null, loading: true, error: null });
     try {
       const updated = await syncMemberCalendar(memberId);
+      setState({ data: updated, loading: false, error: null });
+      return updated;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setState({ data: null, loading: false, error });
+      throw error;
+    }
+  }, []);
+
+  return { ...state, trigger };
+}
+
+/**
+ * Returns a `trigger(id)` function that clears a manual leave-status override,
+ * resetting the member to 'available' in the database.
+ */
+export function useDeleteOverride() {
+  const [state, setState] = useState<MutationState<TeamMember>>({
+    data: null, loading: false, error: null,
+  });
+
+  const trigger = useCallback(async (memberId: string) => {
+    setState({ data: null, loading: true, error: null });
+    try {
+      const updated = await deleteOverride(memberId);
       setState({ data: updated, loading: false, error: null });
       return updated;
     } catch (err) {

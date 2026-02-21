@@ -89,6 +89,11 @@ export async function updateMemberOverride(
   return parseMember(raw);
 }
 
+export async function deleteOverride(id: string): Promise<TeamMember> {
+  const raw = await apiFetch<ApiTeamMember>(`/members/${id}/override`, { method: 'DELETE' });
+  return parseMember(raw);
+}
+
 export async function syncMemberCalendar(id: string): Promise<TeamMember> {
   const raw = await apiFetch<ApiTeamMember>(`/members/${id}/calendar/sync`, {
     method: 'POST',

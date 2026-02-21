@@ -9,7 +9,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { weekChartData } from '@/lib/mock-data';
+
+interface WeekChartProps {
+  data: { day: string; available: number }[];
+}
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -31,12 +34,12 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   return null;
 }
 
-export default function WeekChart() {
+export default function WeekChart({ data }: WeekChartProps) {
   return (
     <div className="w-full h-48">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={weekChartData}
+          data={data}
           margin={{ top: 8, right: 16, left: -20, bottom: 0 }}
         >
           <defs>

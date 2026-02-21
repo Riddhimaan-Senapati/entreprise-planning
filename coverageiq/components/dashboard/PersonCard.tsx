@@ -18,6 +18,7 @@ import ConfidenceRing from './ConfidenceRing';
 import { TeamMember } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
+import { useMemberOverride, useDeleteOverride } from '@/hooks/use-api';
 
 interface PersonCardProps {
   member: TeamMember;
@@ -47,12 +48,28 @@ function DataSourceDot({ active }: { active: boolean }) {
 export default function PersonCard({ member, index }: PersonCardProps) {
   const { overrides, setOverride, clearOverride } = useAppStore();
   const override = overrides.find((o) => o.memberId === member.id);
-  const hasOverride = !!override;
+  // hasOverride is true when there's a Zustand session override OR the DB says it was manually set
+  const hasOverride = !!override || member.manuallyOverridden === true;
 
-  // Effective status respects manual overrides; falls back to raw data
-  const effectiveStatus =
-    override?.status ?? (member.isOOO ? 'ooo' : member.dataSources.leaveStatus);
+  const { trigger: triggerOverride } = useMemberOverride();
+  const { trigger: triggerDelete } = useDeleteOverride();
+
+  // Effective status: Zustand override first, then DB value (already reflects computed + persisted state)
+  const effectiveStatus = override?.status ?? member.dataSources.leaveStatus;
   const effectiveIsOOO = effectiveStatus === 'ooo';
+
+  // Status to display in the "Overridden to X" tooltip line
+  const displayOverrideStatus = override?.status ?? (member.manuallyOverridden ? member.dataSources.leaveStatus : null);
+
+  const handleSetOverride = (status: 'available' | 'partial' | 'ooo') => {
+    setOverride(member.id, status);                    // optimistic
+    triggerOverride(member.id, status).catch(() => {}); // persist
+  };
+
+  const handleClearOverride = () => {
+    clearOverride(member.id);                 // optimistic
+    triggerDelete(member.id).catch(() => {}); // persist
+  };
 
   const dataSourceCount = [
     member.dataSources.calendarPct > 0,
@@ -126,11 +143,11 @@ export default function PersonCard({ member, index }: PersonCardProps) {
           className="bg-bg-surface2 border border-border text-foreground p-3 max-w-[220px]"
         >
           <p className="font-semibold text-xs mb-2">{member.name}</p>
-          {hasOverride && (
+          {hasOverride && displayOverrideStatus && (
             <p className="text-[10px] text-status-yellow mb-2 flex items-center gap-1">
               <Pencil className="w-3 h-3 flex-shrink-0" />
               Overridden to{' '}
-              <span className="capitalize font-semibold">&nbsp;{override?.status}</span>
+              <span className="capitalize font-semibold">&nbsp;{displayOverrideStatus}</span>
             </p>
           )}
           <div className="space-y-1.5">
@@ -191,19 +208,19 @@ export default function PersonCard({ member, index }: PersonCardProps) {
         <DropdownMenuSeparator className="bg-border" />
         <DropdownMenuItem
           className="text-status-green cursor-pointer text-xs"
-          onClick={() => setOverride(member.id, 'available')}
+          onClick={() => handleSetOverride('available')}
         >
           Mark as Available
         </DropdownMenuItem>
         <DropdownMenuItem
           className="text-status-yellow cursor-pointer text-xs"
-          onClick={() => setOverride(member.id, 'partial')}
+          onClick={() => handleSetOverride('partial')}
         >
           Mark as Partially Available
         </DropdownMenuItem>
         <DropdownMenuItem
           className="text-status-red cursor-pointer text-xs"
-          onClick={() => setOverride(member.id, 'ooo')}
+          onClick={() => handleSetOverride('ooo')}
         >
           Mark as OOO
         </DropdownMenuItem>
@@ -212,7 +229,7 @@ export default function PersonCard({ member, index }: PersonCardProps) {
             <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem
               className="text-muted-foreground cursor-pointer text-xs"
-              onClick={() => clearOverride(member.id)}
+              onClick={handleClearOverride}
             >
               Clear override
             </DropdownMenuItem>

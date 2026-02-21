@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutGrid, Calendar, Zap, Users, Wifi, WifiOff, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { lastSynced } from '@/lib/mock-data';
+import { useSummary } from '@/hooks/use-api';
 import { formatDistanceToNow } from 'date-fns';
 
 const navItems = [
@@ -16,8 +16,19 @@ const navItems = [
 ];
 
 function SyncStatus({ expanded }: { expanded: boolean }) {
-  const diffMs = Date.now() - lastSynced.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
+  const { data: summary } = useSummary();
+  const lastSynced = summary ? new Date(summary.lastSynced) : null;
+
+  if (!lastSynced) {
+    return (
+      <div className={cn('flex items-center gap-2 pb-4', expanded ? 'px-4' : 'flex-col px-2')}>
+        <Wifi className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <span className={cn('font-mono text-muted-foreground leading-none', expanded ? 'text-xs' : 'text-[9px]')}>—</span>
+      </div>
+    );
+  }
+
+  const diffHours = (Date.now() - lastSynced.getTime()) / (1000 * 60 * 60);
   const isStale = diffHours > 2;
 
   return (

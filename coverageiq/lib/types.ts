@@ -46,4 +46,5 @@ export interface TeamMember {
   isOOO: boolean;
   lastSynced: Date;
   weekAvailability: WeekAvailability;
+  manuallyOverridden?: boolean;  // true when leave status was manually set via override
 }

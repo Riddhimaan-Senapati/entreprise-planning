@@ -2,7 +2,7 @@
 
 import { differenceInHours, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { atRiskTasks, teamMembers } from '@/lib/mock-data';
+import { useTasks, useTeamMembers } from '@/hooks/use-api';
 import { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
@@ -45,12 +45,11 @@ function DeadlineText({ deadline }: { deadline: Date }) {
 
 interface RiskCardProps {
   task: Task;
+  assigneeName?: string;
   onClick: () => void;
 }
 
-function RiskCard({ task, onClick }: RiskCardProps) {
-  const assignee = teamMembers.find((m) => m.id === task.assigneeId);
-
+function RiskCard({ task, assigneeName, onClick }: RiskCardProps) {
   return (
     <button
       onClick={onClick}
@@ -72,8 +71,8 @@ function RiskCard({ task, onClick }: RiskCardProps) {
       {/* Project name */}
       <p className="text-xs font-mono text-muted-foreground mb-2 truncate">
         {task.projectName}
-        {assignee && (
-          <span className="text-muted-foreground/60"> · {assignee.name.split(' ')[0]}</span>
+        {assigneeName && (
+          <span className="text-muted-foreground/60"> · {assigneeName}</span>
         )}
       </p>
 
@@ -92,9 +91,11 @@ function RiskCard({ task, onClick }: RiskCardProps) {
 
 export default function RiskChipStrip() {
   const { taskStatusOverrides } = useAppStore();
+  const { data: tasks } = useTasks();
+  const { data: members } = useTeamMembers();
   const router = useRouter();
 
-  const visibleTasks = atRiskTasks
+  const visibleTasks = (tasks ?? [])
     .filter((t) => (taskStatusOverrides[t.id] ?? t.status) !== 'covered')
     .sort((a, b) => a.deadline.getTime() - b.deadline.getTime());
 
@@ -102,13 +103,17 @@ export default function RiskChipStrip() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {visibleTasks.map((task) => (
-        <RiskCard
-          key={task.id}
-          task={task}
-          onClick={() => router.push(`/task-command?taskId=${task.id}`)}
-        />
-      ))}
+      {visibleTasks.map((task) => {
+        const assignee = (members ?? []).find((m) => m.id === task.assigneeId);
+        return (
+          <RiskCard
+            key={task.id}
+            task={task}
+            assigneeName={assignee?.name.split(' ')[0]}
+            onClick={() => router.push(`/task-command?taskId=${task.id}`)}
+          />
+        );
+      })}
     </div>
   );
 }
