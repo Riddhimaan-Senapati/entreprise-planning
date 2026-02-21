@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { toast } from 'sonner';
 import { formatDistanceToNow, differenceInHours } from 'date-fns';
 import { useTasks, useTeamMembers } from '@/hooks/use-api';
 import { Task } from '@/lib/types';
@@ -46,7 +47,7 @@ const PRIORITY_ACTIVE: Record<Priority, string> = {
 
 interface AddTaskFormProps {
   memberOptions: { id: string; name: string }[];
-  onCreated: () => void;
+  onCreated: (task: Task) => void;
   onCancel: () => void;
 }
 
@@ -72,14 +73,14 @@ function AddTaskForm({ memberOptions, onCreated, onCancel }: AddTaskFormProps) {
     setSubmitting(true);
     setError('');
     try {
-      await createTask({
+      const task = await createTask({
         title: title.trim(),
         projectName: project.trim(),
         priority,
         deadline: new Date(deadline).toISOString(),
         assigneeId: assigneeId || null,
       });
-      onCreated();
+      onCreated(task);
     } catch {
       setError('Failed to create task. Is the backend running?');
       setSubmitting(false);
@@ -181,7 +182,7 @@ function AddTaskForm({ memberOptions, onCreated, onCancel }: AddTaskFormProps) {
 }
 
 export default function TaskList({ initialTaskId }: TaskListProps) {
-  const { selectedTaskId, setSelectedTaskId, priorityFilter, setPriorityFilter, taskStatusOverrides, scheduledTasks } = useAppStore();
+  const { selectedTaskId, setSelectedTaskId, priorityFilter, setPriorityFilter, taskStatusOverrides, scheduledTasks, setPipelineRunning } = useAppStore();
   const { data: tasks, refetch: refetchTasks } = useTasks();
   const { data: members } = useTeamMembers();
   const [showForm, setShowForm] = useState(false);
@@ -207,8 +208,13 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
 
   const memberOptions = (members ?? []).map((m) => ({ id: m.id, name: m.name }));
 
-  const handleCreated = () => {
+  const handleCreated = (task: Task) => {
     setShowForm(false);
+    setSelectedTaskId(task.id);
+    // If unassigned, mark pipeline as running so the loading banner + polling start immediately
+    if (!task.assigneeId) {
+      setPipelineRunning(task.id, true);
+    }
     refetchTasks();
   };
 
@@ -219,8 +225,11 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
       await deleteTask(taskId);
       if (selectedTaskId === taskId) setSelectedTaskId(null);
       refetchTasks();
-    } catch {
-      // ignore — keep the card visible
+    } catch (err) {
+      toast.error('Failed to delete task', {
+        description: err instanceof Error ? err.message : 'Check that the backend is running.',
+        duration: 4000,
+      });
     } finally {
       setDeletingId(null);
     }

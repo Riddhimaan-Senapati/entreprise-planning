@@ -232,7 +232,14 @@ export default function SuggestionPanel() {
     );
   }
 
-  if (!task) return null;
+  // selectedTaskId is set but tasks haven't loaded the new task yet — show spinner
+  if (!task) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const currentStatus = taskStatusOverrides[selectedTaskId] ?? task.status;
   const isCovered = currentStatus === 'covered';
