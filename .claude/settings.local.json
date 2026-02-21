@@ -6,7 +6,9 @@
       "Bash(npx shadcn@latest init --defaults)",
       "Bash(npx shadcn@latest add:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(tail:*)",
+      "Bash(cd /c/Users/riddh/entreprise-planning/backend && python -c \"import main; print\\('App imported OK'\\)\" 2>&1)"
     ]
   }
 }
