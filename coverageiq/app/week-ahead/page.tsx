@@ -1,119 +1,154 @@
 'use client';
 
-import WeekChart from '@/components/dashboard/WeekChart';
-import ConfidenceRing from '@/components/dashboard/ConfidenceRing';
+import { Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useTeamMembers } from '@/hooks/use-api';
-import { getConfidenceColor } from '@/lib/utils';
-import { TeamMember } from '@/lib/types';
+import { getHistoricalTrend } from '@/lib/historical-data';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
-type DayKey = keyof TeamMember['weekAvailability'];
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-const DAY_KEYS: DayKey[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-
-function DayCell({ score }: { score: number }) {
-  const color = getConfidenceColor(score);
-  const bgOpacity = score === 0 ? 0.08 : 0.18 + (score / 100) * 0.32;
-
-  return (
-    <div
-      className="w-9 h-9 rounded flex items-center justify-center text-xs font-mono font-semibold"
-      style={{
-        backgroundColor: `${color}${Math.round(bgOpacity * 255).toString(16).padStart(2, '0')}`,
-        color: score === 0 ? '#9494b2' : '#e8e8f0',
-      }}
-      title={`${score}% available`}
-    >
-      {score > 0 ? score : '—'}
-    </div>
-  );
+interface BarTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
 }
 
-function getInitials(name: string) {
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
-function WeekRow({ member, index }: { member: TeamMember; index: number }) {
-  return (
-    <div className="flex items-center gap-4 p-3 rounded-xl bg-bg-surface border border-border">
-      {/* Person identity */}
-      <div className="flex items-center gap-2 w-48 flex-shrink-0">
-        <ConfidenceRing score={member.confidenceScore} size={36} strokeWidth={3} index={index}>
-          <div className="flex items-center justify-center w-[24px] h-[24px] rounded-full bg-bg-surface2 text-[8px] font-bold font-heading text-foreground">
-            {getInitials(member.name)}
-          </div>
-        </ConfidenceRing>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{member.name}</p>
-          <p className="text-xs text-muted-foreground truncate">{member.role.split(' ').slice(-1)[0]}</p>
-        </div>
+function BarTooltip({ active, payload, label }: BarTooltipProps) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-bg-surface2 border border-border rounded-lg px-3 py-2 text-xs space-y-0.5">
+        <p className="text-muted-foreground">{label}</p>
+        <p className="text-status-green font-mono font-medium">
+          {payload[0].value} avg available
+        </p>
       </div>
-
-      {/* Day cells */}
-      <div className="flex gap-2 flex-1">
-        {DAY_KEYS.map((dayKey) => (
-          <DayCell key={dayKey} score={member.weekAvailability[dayKey]} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function buildWeekChartData(members: TeamMember[]) {
-  const keys: { label: string; key: DayKey }[] = [
-    { label: 'Mon', key: 'monday' },
-    { label: 'Tue', key: 'tuesday' },
-    { label: 'Wed', key: 'wednesday' },
-    { label: 'Thu', key: 'thursday' },
-    { label: 'Fri', key: 'friday' },
-  ];
-  return keys.map(({ label, key }) => ({
-    day: label,
-    available: members.filter((m) => m.weekAvailability[key] >= 50).length,
-  }));
+    );
+  }
+  return null;
 }
 
 export default function WeekAheadPage() {
   const { data: members } = useTeamMembers();
-  const sorted = [...(members ?? [])].sort((a, b) => b.confidenceScore - a.confidenceScore);
-  const weekChartData = buildWeekChartData(members ?? []);
+  const trend = getHistoricalTrend(members ?? []);
+
+  // Compute mean for the reference line
+  const mean =
+    trend.length > 0
+      ? Math.round(trend.reduce((s, d) => s + d.avgAvailable, 0) / trend.length * 10) / 10
+      : 0;
 
   return (
-    <div className="p-6 pb-20 md:pb-6 space-y-6 max-w-[900px]">
+    <div className="p-6 pb-20 md:pb-6 space-y-6 max-w-[960px]">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Week Ahead</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Availability forecast · read-only view
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Week Ahead</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Historical availability trend · last 20 weeks
+          </p>
+        </div>
+        <a
+          href={`${API_URL}/calendar/team.ics`}
+          download="vantage-team.ics"
+        >
+          <Button variant="outline" size="sm" className="gap-2 text-xs border-border text-muted-foreground hover:text-foreground">
+            <Download className="w-3.5 h-3.5" />
+            Download Team Calendar
+          </Button>
+        </a>
+      </div>
+
+      {/* Historical trend chart */}
+      <div className="p-5 rounded-xl bg-bg-surface border border-border space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Historical Availability Trend · Last 20 Weeks
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Average available headcount per day across the team — simulated from calendar patterns
+            </p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="text-xs text-muted-foreground font-mono">20-week avg</p>
+            <p className="text-sm font-mono text-status-green">{mean}</p>
+          </div>
+        </div>
+
+        <div className="w-full h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={trend}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+              barSize={18}
+            >
+              <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity={0.85} />
+                  <stop offset="100%" stopColor="#818cf8" stopOpacity={0.3} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2235" vertical={false} />
+              <XAxis
+                dataKey="week"
+                tick={{ fill: '#8b90b8', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }}
+                axisLine={false}
+                tickLine={false}
+                interval={3}
+              />
+              <YAxis
+                tick={{ fill: '#8b90b8', fontSize: 11, fontFamily: 'var(--font-dm-mono)' }}
+                axisLine={false}
+                tickLine={false}
+                domain={[0, 'auto']}
+              />
+              <Tooltip content={<BarTooltip />} cursor={{ fill: '#1e2235' }} />
+              <ReferenceLine
+                y={mean}
+                stroke="#818cf8"
+                strokeDasharray="4 3"
+                strokeOpacity={0.4}
+                label={{
+                  value: `avg ${mean}`,
+                  position: 'insideTopRight',
+                  fill: '#8b90b8',
+                  fontSize: 10,
+                  fontFamily: 'var(--font-dm-mono)',
+                }}
+              />
+              <Bar dataKey="avgAvailable" fill="url(#barGradient)" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground font-mono">
+          W-20 = 20 weeks ago · W-1 = last week · Derived from calendar event density per member
         </p>
       </div>
 
-      {/* Area chart */}
-      <div className="p-4 rounded-xl bg-bg-surface border border-border space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-foreground">Available Headcount by Day</h2>
-          <span className="text-xs text-muted-foreground font-mono">Mon–Fri</span>
+      {/* Info card */}
+      <div className="p-4 rounded-xl bg-bg-surface border border-border flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-status-green/10 border border-status-green/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Download className="w-4 h-4 text-status-green" />
         </div>
-        <WeekChart data={weekChartData} />
-      </div>
-
-      {/* Day header row */}
-      <div className="flex items-center gap-4">
-        <div className="w-48 flex-shrink-0" />
-        <div className="flex gap-2">
-          {DAYS.map((d) => (
-            <div key={d} className="w-9 text-center text-xs font-mono text-muted-foreground">
-              {d}
-            </div>
-          ))}
+        <div>
+          <p className="text-sm font-medium text-foreground">Team Calendar (ICS)</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+            Download a unified ICS file containing all team members&apos; schedules. Import it into
+            Google Calendar, Outlook, or Apple Calendar to see everyone&apos;s availability in one
+            view. The file is generated live from the database and stays in sync.
+          </p>
         </div>
-      </div>
-
-      {/* Member rows */}
-      <div className="space-y-2">
-        {sorted.map((member, i) => (
-          <WeekRow key={member.id} member={member} index={i} />
-        ))}
       </div>
     </div>
   );

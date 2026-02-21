@@ -5,7 +5,9 @@ import { AlertTriangle } from 'lucide-react';
 import SummaryBar from '@/components/dashboard/SummaryBar';
 import RiskChipStrip from '@/components/dashboard/RiskChipStrip';
 import TeamGrid from '@/components/dashboard/TeamGrid';
-import { useSummary } from '@/hooks/use-api';
+import WeekChart from '@/components/dashboard/WeekChart';
+import { useSummary, useTeamMembers } from '@/hooks/use-api';
+import { getWeekPrediction } from '@/lib/historical-data';
 
 function StaleBanner() {
   const { data: summary } = useSummary();
@@ -28,6 +30,9 @@ function StaleBanner() {
 }
 
 export default function OverviewPage() {
+  const { data: members } = useTeamMembers();
+  const weekPrediction = getWeekPrediction(members ?? []);
+
   return (
     <div className="p-8 pb-20 md:pb-8 max-w-[1600px] space-y-10">
       {/* Page header */}
@@ -64,6 +69,25 @@ export default function OverviewPage() {
           Team Availability
         </h2>
         <TeamGrid />
+      </div>
+
+      {/* Availability forecast */}
+      <div className="space-y-3">
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+          Availability Forecast
+        </h2>
+        <div className="p-4 rounded-xl bg-bg-surface border border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Predicted Headcount — This Week</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Based on 20-week historical average · shaded band shows typical range
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground font-mono">Mon–Fri</span>
+          </div>
+          <WeekChart data={weekPrediction} />
+        </div>
       </div>
     </div>
   );

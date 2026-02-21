@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Calendar, Zap, Users, Wifi, WifiOff, ChevronRight } from 'lucide-react';
+import { LayoutGrid, Zap, Users, Wifi, WifiOff, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSummary } from '@/hooks/use-api';
 import { formatDistanceToNow } from 'date-fns';
 
 const navItems = [
   { href: '/overview', icon: LayoutGrid, label: 'Overview' },
-  { href: '/week-ahead', icon: Calendar, label: 'Week Ahead' },
   { href: '/task-command', icon: Zap, label: 'Task Command' },
   { href: '/team', icon: Users, label: 'Team Directory' },
 ];
@@ -54,7 +53,7 @@ function SyncStatus({ expanded }: { expanded: boolean }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <>
@@ -68,7 +67,9 @@ export default function Sidebar() {
         {/* Logo / Brand mark + toggle */}
         <div className={cn('flex items-center h-14 border-b border-border flex-shrink-0', expanded ? 'px-3 gap-2' : 'justify-center')}>
           <div className="w-7 h-7 rounded-md bg-status-green flex items-center justify-center flex-shrink-0">
-            <span className="text-bg-base font-bold text-xs font-heading">IQ</span>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+              <path d="M5 3L8 13L11 3" stroke="#0b0c12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
           {expanded && (
             <span className="flex-1 text-sm font-heading font-bold text-foreground truncate">Vantage</span>

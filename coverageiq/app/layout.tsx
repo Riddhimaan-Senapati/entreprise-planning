@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import Sidebar from '@/components/dashboard/Sidebar';
+import LoadingScreen from '@/components/LoadingScreen';
 
 const syne = Syne({
   subsets: ['latin'],
@@ -38,6 +39,7 @@ export default function RootLayout({
       <body
         className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} antialiased bg-bg-base text-foreground`}
       >
+        <LoadingScreen />
         <TooltipProvider delayDuration={300}>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />

@@ -40,6 +40,7 @@ from models import SummaryOut
 from crud import get_summary
 from routers.members import router as members_router
 from routers.tasks import router as tasks_router
+from routers.calendar import router as calendar_router
 from seed import seed
 from slack_parser import TimeOffEntry, fetch_and_parse
 
@@ -100,6 +101,7 @@ app.add_middleware(
 # ── DB routers ─────────────────────────────────────────────────────────────────
 app.include_router(members_router)
 app.include_router(tasks_router)
+app.include_router(calendar_router)
 
 
 # ── Core routes ────────────────────────────────────────────────────────────────

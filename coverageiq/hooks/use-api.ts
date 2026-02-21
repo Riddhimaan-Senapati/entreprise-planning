@@ -1,6 +1,6 @@
 /**
  * hooks/use-api.ts
- * React hooks for fetching data from the CoverageIQ backend.
+ * React hooks for fetching data from the Vantage backend.
  *
  * Each hook returns { data, loading, error, refetch }.
  * Pass `enabled: false` to skip the initial fetch (useful when waiting on a

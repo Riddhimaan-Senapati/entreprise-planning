@@ -133,3 +133,34 @@
 .animate-pulse-p0 {
   animation: pulse-p0 3s ease-in-out infinite;
 }
+
+/* ── Loading screen animations ── */
+@keyframes vantage-logo-in {
+  from { opacity: 0; transform: scale(0.55) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+@keyframes vantage-slide-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes vantage-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes vantage-dot {
+  0%, 80%, 100% { transform: translateY(0);   opacity: 0.35; }
+  40%           { transform: translateY(-6px); opacity: 1;    }
+}
+
+@keyframes vantage-glow-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1);    }
+  50%      { opacity: 0.85; transform: scale(1.12); }
+}
+
+@keyframes vantage-exit {
+  0%   { transform: translateY(0);     }
+  100% { transform: translateY(-100%); }
+}
