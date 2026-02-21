@@ -1,16 +1,26 @@
 """
-FastAPI server — Slack Time-Off API
+FastAPI server — CoverageIQ API
 
-Endpoints:
-    GET  /health          → liveness check
-    GET  /timeoff         → fetch last 24h, return list of time-off entries
-    GET  /timeoff?hours=48 → look back further
-    GET  /timeoff?limit=50 → cap messages fetched
-    POST /ping            → DM a team member asking them to confirm availability
+Coverage-intelligence endpoints (new):
+    GET  /health                          → liveness check
+    GET  /summary                         → team availability summary counts
+    GET  /members                         → all 24 team members with availability
+    GET  /members/{id}                    → single member
+    PATCH /members/{id}/override          → manual leave-status override
+    GET  /members/{id}/availability       → live ICS-based availability report
+    POST /members/{id}/calendar/sync      → re-sync ICS and update confidence_score
+    GET  /tasks                           → all at-risk tasks with suggestions
+    GET  /tasks/{id}                      → single task
+    PATCH /tasks/{id}/status              → update task status
+
+Slack / time-off endpoints (existing):
+    GET  /timeoff                         → fetch last 24h Slack time-off entries
+    POST /ping                            → DM a team member to check availability
 """
 
 import os
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 # Force UTF-8 on Windows
@@ -18,12 +28,19 @@ if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from sqlmodel import Session
 
+from database import create_db_and_tables, engine, get_session
+from models import SummaryOut
+from crud import get_summary
+from routers.members import router as members_router
+from routers.tasks import router as tasks_router
+from seed import seed
 from slack_parser import TimeOffEntry, fetch_and_parse
 
 load_dotenv()
@@ -52,26 +69,51 @@ if missing:
 # ── Slack client (shared, created once at startup) ─────────────────────────────
 slack_client = WebClient(token=SLACK_BOT_TOKEN)
 
+
+# ── Lifespan: init DB and seed on first boot ───────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    with Session(engine) as db:
+        seed(db)  # no-op if already seeded
+    yield
+
+
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Slack Time-Off API",
-    description="Reads a Slack channel and extracts time-off announcements using Gemini.",
-    version="1.0.0",
+    title="CoverageIQ API",
+    description=(
+        "Team coverage intelligence: real-time member availability from ICS calendars, "
+        "Slack time-off parsing via Gemini AI, and task triage suggestions."
+    ),
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
-# ── Routes ─────────────────────────────────────────────────────────────────────
+# ── DB routers ─────────────────────────────────────────────────────────────────
+app.include_router(members_router)
+app.include_router(tasks_router)
+
+
+# ── Core routes ────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
+@app.get("/summary", response_model=SummaryOut)
+def summary(db: Session = Depends(get_session)):
+    return get_summary(db)
+
+
+# ── Slack / time-off routes ────────────────────────────────────────────────────
 @app.get(
     "/timeoff",
     response_model=list[TimeOffEntry],
@@ -166,8 +208,6 @@ def post_ping(body: PingRequest):
     header_text = "🚨 Urgent coverage check" if is_urgent else "📋 Coverage check"
 
     # ── Open DM channel ─────────────────────────────────────────────────────────
-    # conversations_open returns a channel ID even if the DM is new.
-    # Requires the bot to have: im:write + chat:write scopes.
     try:
         dm = slack_client.conversations_open(users=[SLACK_PING_USER_ID])
     except SlackApiError as e:

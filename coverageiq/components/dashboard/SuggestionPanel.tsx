@@ -5,9 +5,10 @@ import { CheckCircle2, Clock, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ConfidenceRing from './ConfidenceRing';
 import { atRiskTasks, teamMembers } from '@/lib/mock-data';
-import { Suggestion } from '@/lib/types';
+import { Suggestion, Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
+import { sendAvailabilityPing } from '@/lib/api-client';
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -15,37 +16,57 @@ function getInitials(name: string) {
 
 interface SuggestionCardProps {
   suggestion: Suggestion;
-  taskId: string;
+  task: Task;
   rank: number;
 }
 
-function SuggestionCard({ suggestion, taskId, rank }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, task, rank }: SuggestionCardProps) {
   const member = teamMembers.find((m) => m.id === suggestion.memberId);
   const { setTaskStatus, setPingSent, setScheduled, pingSent, scheduledTasks } = useAppStore();
 
   if (!member) return null;
 
   // Keyed by "taskId:memberId" — asking someone about Task A doesn't affect their button on Task B
-  const pingKey = `${taskId}:${member.id}`;
+  const pingKey = `${task.id}:${member.id}`;
   const hasPingSent = pingSent[pingKey] ?? false;
-  const isTaskScheduled = scheduledTasks[taskId];
+  const isTaskScheduled = scheduledTasks[task.id];
 
   const handleReassign = () => {
-    setTaskStatus(taskId, 'covered');
+    setTaskStatus(task.id, 'covered');
     toast.success(`Task reassigned to ${member.name}`, {
       description: `${member.name} is now the owner. The task is marked covered.`,
       duration: 4000,
     });
   };
 
-  // Simulates sending a Slack/email notification asking the person to confirm availability
+  // Sends a real Slack DM via the /ping endpoint asking the person to confirm availability
   // before committing the hard reassignment. Locks per task+person so you can't double-ping.
-  const handleAskFirst = () => {
-    setPingSent(taskId, member.id);
-    toast.info(`Availability check sent to ${member.name}`, {
-      description: `${member.name} will get a notification asking if they can cover this task. You can hard-reassign once they confirm.`,
-      duration: 5000,
-    });
+  const handleAskFirst = async () => {
+    try {
+      await sendAvailabilityPing({
+        member_name: member.name,
+        task_title: task.title,
+        project_name: task.projectName,
+        priority: task.priority,
+        deadline: task.deadline instanceof Date
+          ? task.deadline.toISOString()
+          : String(task.deadline),
+        context_reason: suggestion.contextReason,
+      });
+      setPingSent(task.id, member.id);
+      toast.info(`Availability check sent to ${member.name}`, {
+        description: `${member.name} will receive a Slack DM asking if they can cover this task.`,
+        duration: 5000,
+      });
+    } catch {
+      // Backend not running or SLACK_PING_USER_ID not set — still mark ping in local state
+      // so the UI locks the button, and show an explanatory toast.
+      setPingSent(task.id, member.id);
+      toast.warning(`Ping saved locally — backend unreachable`, {
+        description: `Start the FastAPI server and set SLACK_PING_USER_ID in .env to send real Slack DMs.`,
+        duration: 6000,
+      });
+    }
   };
 
   const handleSchedule = () => {
@@ -221,7 +242,7 @@ export default function SuggestionPanel() {
             Suggested coverage — sorted by skill match
           </p>
           {sortedSuggestions.map((s, i) => (
-            <SuggestionCard key={s.memberId} suggestion={s} taskId={task.id} rank={i} />
+            <SuggestionCard key={s.memberId} suggestion={s} task={task} rank={i} />
           ))}
         </>
       )}
