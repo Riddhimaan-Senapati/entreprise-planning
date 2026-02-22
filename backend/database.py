@@ -26,6 +26,7 @@ def _build_engine_url(raw: str):
     (@, /, +, =) are passed through without URL-encoding errors.
     Falls back to the raw string for SQLite.
     """
+    raw = raw.strip().strip('"').strip("'")
     if not raw.startswith(("postgresql://", "postgres://", "postgresql+")):
         return raw
 
