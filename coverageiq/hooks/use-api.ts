@@ -17,13 +17,11 @@ import {
   fetchTasks,
   fetchSummary,
   syncMemberCalendar,
-  syncTimeOff,
   updateMemberOverride,
   deleteOverride,
   updateTaskStatus,
   type Summary,
 } from '@/lib/api-client';
-import type { TimeOffSyncResult } from '@/lib/types';
 
 // ── Generic fetch state ────────────────────────────────────────────────────────
 
@@ -173,35 +171,6 @@ export function useMemberOverride() {
     },
     [],
   );
-
-  return { ...state, trigger };
-}
-
-/**
- * Returns a `trigger(hours?)` function that syncs Slack time-off announcements
- * to team member leave statuses in the DB.
- *
- * Usage:
- *   const { trigger, loading, data } = useSlackSync();
- *   await trigger(24);  // scan last 24h
- */
-export function useSlackSync() {
-  const [state, setState] = useState<MutationState<TimeOffSyncResult>>({
-    data: null, loading: false, error: null,
-  });
-
-  const trigger = useCallback(async (hours = 24) => {
-    setState({ data: null, loading: true, error: null });
-    try {
-      const result = await syncTimeOff(hours);
-      setState({ data: result, loading: false, error: null });
-      return result;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setState({ data: null, loading: false, error });
-      throw error;
-    }
-  }, []);
 
   return { ...state, trigger };
 }

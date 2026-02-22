@@ -13,15 +13,28 @@ Coverage-intelligence endpoints (new):
     GET  /tasks/{id}                      → single task
     PATCH /tasks/{id}/status              → update task status
 
-Slack / time-off endpoints (existing):
-    GET  /timeoff                         → fetch last 24h Slack time-off entries
+Slack / time-off endpoints:
+    GET  /timeoff                         → fetch last 24h Slack time-off entries (read-only)
+    POST /timeoff/sync                    → sync Slack time-off announcements to DB
+    GET  /timeoff/debug                   → debug Slack pipeline (no DB writes)
     POST /ping                            → DM a team member to check availability
+
+Gmail OOO endpoints:
+    POST /gmail/scan                      → scan Gmail inbox for OOO emails, update DB
+    GET  /gmail/debug                     → debug Gmail pipeline (no DB writes)
 """
 
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 # Force UTF-8 on Windows
 if sys.stdout.encoding != "utf-8":
@@ -36,14 +49,14 @@ from slack_sdk.errors import SlackApiError
 from sqlmodel import Session
 
 from database import create_db_and_tables, engine, get_session
-from models import SummaryOut
+from models import SummaryOut, TimeOffSyncResult, TimeOffDebugResult, MessageDebug
 from crud import apply_timeoff_entries, get_summary, simulate_timeoff_matching, tick_slack_ooo_status
 from routers.members import router as members_router
 from routers.tasks import router as tasks_router
 from routers.calendar import router as calendar_router
+from routers.gmail import router as gmail_router
 from seed import seed
 from slack_parser import TimeOffEntry, fetch_and_parse, fetch_and_parse_debug
-from models import TimeOffSyncResult, TimeOffDebugResult, MessageDebug
 
 load_dotenv()
 
@@ -78,7 +91,6 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     with Session(engine) as db:
         seed(db)  # no-op if already seeded
-        tick_slack_ooo_status(db)  # activate pending + restore expired OOOs on startup
     yield
 
 
@@ -104,6 +116,7 @@ app.add_middleware(
 app.include_router(members_router)
 app.include_router(tasks_router)
 app.include_router(calendar_router)
+app.include_router(gmail_router)
 
 
 # ── Core routes ────────────────────────────────────────────────────────────────

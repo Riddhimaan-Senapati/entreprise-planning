@@ -312,28 +312,6 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                 deletingId === task.id && 'opacity-40 pointer-events-none'
               )}
             >
-              {/* Scheduled clock overlay */}
-              {isScheduled && (
-                <div className="absolute top-3 right-3">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                </div>
-              )}
-
-              {/* Delete button — only on covered tasks */}
-              {status === 'covered' && (
-                <button
-                  onClick={(e) => handleDelete(e, task.id)}
-                  disabled={deletingId === task.id}
-                  title="Delete task"
-                  className="absolute top-2.5 right-2.5 p-1 rounded-md text-muted-foreground hover:text-status-red hover:bg-status-red/10 transition-colors disabled:opacity-40"
-                >
-                  {deletingId === task.id
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <Trash2 className="w-3.5 h-3.5" />
-                  }
-                </button>
-              )}
-
               <div className="flex items-start gap-3">
                 {/* Priority badge */}
                 <span
@@ -348,7 +326,7 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                 <div className="flex-1 min-w-0">
                   <p
                     className={cn(
-                      'text-base font-heading font-semibold leading-tight',
+                      'text-base font-heading font-semibold leading-tight pr-6',
                       status === 'covered' && 'line-through opacity-60'
                     )}
                   >
@@ -363,6 +341,11 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                   <div className="flex items-center gap-2 mt-2">
                     <DeadlineLabel deadline={task.deadline} />
 
+                    {/* Scheduled clock icon */}
+                    {isScheduled && (
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    )}
+
                     {/* Original assignee avatar with strikethrough */}
                     {assignee && (
                       <div className="flex items-center gap-1">
@@ -373,6 +356,21 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                           {assignee.name.split(' ')[0]}
                         </span>
                       </div>
+                    )}
+
+                    {/* Delete button — inline at end of meta row, only on covered tasks */}
+                    {status === 'covered' && (
+                      <button
+                        onClick={(e) => handleDelete(e, task.id)}
+                        disabled={deletingId === task.id}
+                        title="Delete task"
+                        className="ml-auto flex-shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-status-red hover:bg-status-red/10 transition-colors disabled:opacity-40"
+                      >
+                        {deletingId === task.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />
+                        }
+                      </button>
                     )}
                   </div>
                 </div>

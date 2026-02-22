@@ -6,7 +6,7 @@
  * Defaults to http://localhost:8000 when the variable is absent.
  */
 
-import type { TeamMember, Task, TimeOffSyncResult, TimeOffEntry } from './types';
+import type { TeamMember, Task, TimeOffSyncResult } from './types';
 
 const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -39,8 +39,6 @@ function parseMember(raw: ApiTeamMember): TeamMember {
     ...raw,
     lastSynced: new Date(raw.lastSynced),
     currentTasks: raw.currentTasks.map(parseTask),
-    slackOooStart: raw.slackOooStart ? new Date(raw.slackOooStart) : null,
-    slackOooUntil: raw.slackOooUntil ? new Date(raw.slackOooUntil) : null,
   };
 }
 
@@ -54,12 +52,10 @@ function parseTask(raw: ApiTask): Task {
 // ── Wire types (dates as strings from JSON) ────────────────────────────────────
 
 type ApiTask = Omit<Task, 'deadline'> & { deadline: string };
-type ApiTeamMember = Omit<TeamMember, 'lastSynced' | 'currentTasks' | 'slackOooStart' | 'slackOooUntil'> & {
+type ApiTeamMember = Omit<TeamMember, 'lastSynced' | 'currentTasks'> & {
   lastSynced: string;
   currentTasks: ApiTask[];
   icsLinked?: boolean;
-  slackOooStart?: string | null;
-  slackOooUntil?: string | null;
 };
 
 // ── Summary ───────────────────────────────────────────────────────────────────
@@ -151,6 +147,14 @@ export async function unassignTask(id: string): Promise<Task> {
   return parseTask(raw);
 }
 
+export async function reassignTask(id: string, memberId: string): Promise<Task> {
+  const raw = await apiFetch<ApiTask>(`/tasks/${id}/reassign`, {
+    method: 'PATCH',
+    body: JSON.stringify({ memberId }),
+  });
+  return parseTask(raw);
+}
+
 export async function deleteTask(id: string): Promise<void> {
   await apiFetch<void>(`/tasks/${id}`, { method: 'DELETE' });
 }
@@ -183,6 +187,22 @@ export function fetchSummary(): Promise<Summary> {
   return apiFetch<Summary>('/summary');
 }
 
+// ── Gmail OOO scanning ────────────────────────────────────────────────────────
+
+/**
+ * Triggers a Gmail inbox scan for OOO emails.
+ * The backend pre-filters by OOO keywords before calling Gemini, so only
+ * relevant emails consume AI quota.
+ *
+ * @param maxResults Max emails to retrieve from Gmail search (default 100).
+ * @returns TimeOffSyncResult with counts and the list of detected OOO members.
+ */
+export function triggerGmailScan(maxResults = 100): Promise<TimeOffSyncResult> {
+  return apiFetch<TimeOffSyncResult>(`/gmail/scan?max_results=${maxResults}`, {
+    method: 'POST',
+  });
+}
+
 // ── Slack ping ────────────────────────────────────────────────────────────────
 
 export interface PingPayload {
@@ -205,22 +225,4 @@ export function sendAvailabilityPing(body: PingPayload): Promise<PingResult> {
     method: 'POST',
     body: JSON.stringify(body),
   });
-}
-
-// ── Slack time-off sync ────────────────────────────────────────────────────────
-
-/**
- * Trigger a full Slack sync: fetch messages, run through Gemini, apply OOO
- * statuses to matched team members. Returns a summary of what changed.
- */
-export function syncTimeOff(hours = 24): Promise<TimeOffSyncResult> {
-  return apiFetch<TimeOffSyncResult>(`/timeoff/sync?hours=${hours}`, { method: 'POST' });
-}
-
-/**
- * Fetch raw time-off entries from Slack without writing to the DB.
- * Useful for previewing what Gemini found before committing.
- */
-export function fetchTimeOffEntries(hours = 24): Promise<TimeOffEntry[]> {
-  return apiFetch<TimeOffEntry[]>(`/timeoff?hours=${hours}`);
 }

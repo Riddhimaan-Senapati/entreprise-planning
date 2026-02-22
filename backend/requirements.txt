@@ -7,3 +7,6 @@ sqlmodel>=0.0.22
 icalendar>=5.0.12
 recurring-ical-events>=3.3.0
 python-dateutil>=2.9.0
+# Gmail OOO scanning
+google-api-python-client>=2.100.0
+google-auth>=2.23.0

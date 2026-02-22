@@ -9,7 +9,7 @@ import { useTasks, useTeamMembers } from '@/hooks/use-api';
 import { Suggestion, Task, TeamMember } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { sendAvailabilityPing, unassignTask, updateTaskStatus } from '@/lib/api-client';
+import { reassignTask, sendAvailabilityPing, unassignTask } from '@/lib/api-client';
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -20,18 +20,18 @@ interface SuggestionCardProps {
   task: Task;
   member: TeamMember;
   rank: number;
+  onReassign: (taskId: string, memberId: string) => void;
 }
 
-function SuggestionCard({ suggestion, task, member, rank }: SuggestionCardProps) {
-  const { setTaskStatus, setPingSent, pingSent } = useAppStore();
+function SuggestionCard({ suggestion, task, member, rank, onReassign }: SuggestionCardProps) {
+  const { setPingSent, pingSent } = useAppStore();
 
   // Keyed by "taskId:memberId" — asking someone about Task A doesn't affect their button on Task B
   const pingKey = `${task.id}:${member.id}`;
   const hasPingSent = pingSent[pingKey] ?? false;
 
   const handleReassign = () => {
-    setTaskStatus(task.id, 'covered');                    // optimistic
-    updateTaskStatus(task.id, 'covered').catch(() => {}); // persist
+    onReassign(task.id, member.id);
     toast.success(`Task reassigned to ${member.name}`, {
       description: `${member.name} is now the owner. The task is marked covered.`,
       duration: 4000,
@@ -173,6 +173,7 @@ function SuggestionCard({ suggestion, task, member, rank }: SuggestionCardProps)
 
 export default function SuggestionPanel() {
   const { selectedTaskId, taskStatusOverrides, pipelineRunning, setPipelineRunning, setTaskStatus } = useAppStore();
+
   const { data: tasks, refetch: refetchTasks } = useTasks();
   const { data: members } = useTeamMembers();
 
@@ -224,6 +225,16 @@ export default function SuggestionPanel() {
   const currentStatus = taskStatusOverrides[selectedTaskId] ?? task.status;
   const isCovered = currentStatus === 'covered';
   const isRunning = pipelineRunning[selectedTaskId] ?? false;
+
+  const handleReassign = async (taskId: string, memberId: string) => {
+    setTaskStatus(taskId, 'covered');
+    try {
+      await reassignTask(taskId, memberId);
+      refetchTasks();
+    } catch {
+      toast.error('Failed to reassign task.');
+    }
+  };
 
   const handleUnassign = async () => {
     setTaskStatus(task.id, 'unassigned');    // optimistic
@@ -322,7 +333,7 @@ export default function SuggestionPanel() {
                 const member = (members ?? []).find((m) => m.id === s.memberId);
                 if (!member) return null;
                 return (
-                  <SuggestionCard key={s.memberId} suggestion={s} task={task} member={member} rank={i} />
+                  <SuggestionCard key={s.memberId} suggestion={s} task={task} member={member} rank={i} onReassign={handleReassign} />
                 );
               })}
             </>
