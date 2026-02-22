@@ -86,7 +86,7 @@ class ChatDeps:
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
 agent = Agent(
-    model="google-gla:gemini-2.0-flash",
+    model="google-gla:gemini-2.5-flash",
     deps_type=ChatDeps,
     system_prompt=SYSTEM_PROMPT,
 )
