@@ -267,7 +267,7 @@ const AVAIL_ACTIVE: Record<AvailKey, string> = {
 };
 
 export default function TeamPage() {
-  const { data: members } = useTeamMembers();
+  const { data: members, loading } = useTeamMembers();
   const { overrides } = useAppStore();
   const [teamFilter, setTeamFilter] = useState<TabKey>('All');
   const [availFilter, setAvailFilter] = useState<AvailKey>('All');
@@ -306,6 +306,17 @@ export default function TeamPage() {
       m.skills.some((s) => s.toLowerCase().includes(q));
     return matchesTeam && matchesAvail && matchesSearch;
   });
+
+  if (loading && !members) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="w-8 h-8 rounded-full border-2 border-border border-t-status-green animate-spin" />
+          <span className="text-sm font-mono">Loading team…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

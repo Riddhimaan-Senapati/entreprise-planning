@@ -48,7 +48,7 @@ Your bot needs these token scopes:
 |---|---|
 | `channels:history` | Read time-off messages |
 | `channels:read` | Get channel metadata |
-| `users:read` | Resolve `<@UID>` mentions to names |
+| `users:read` | Resolve sender display name (one call per message, cached) |
 | `im:write` | Open DM channels for availability pings |
 | `chat:write` | Send availability-check DMs |
 
@@ -188,6 +188,7 @@ Interactive API docs: **http://localhost:8000/docs**
 |---|---|---|
 | `GET` | `/timeoff` | Raw Gemini-parsed time-off entries from Slack (`?hours=24&limit=100`) |
 | `POST` | `/timeoff/sync` | Scan Slack, apply OOO statuses to matched team members (`?hours=24&limit=100`) |
+| `GET` | `/timeoff/debug` | Full pipeline trace without DB writes — use to diagnose sync issues (`?hours=24&limit=100`) |
 | `POST` | `/ping` | Send an availability-check DM to a team member |
 
 #### `POST /timeoff/sync` — Slack availability sync
@@ -196,9 +197,15 @@ Fetches recent Slack messages, runs each through Gemini AI to detect time-off
 announcements, fuzzy-matches each person to a team member by name, and updates
 their `leave_status` in the database.
 
+**Messages must contain the person's name in plain text** (e.g. `"Alex Chen will be OOO from 2/21 to 2/22"`).
+Gemini extracts the name and falls back to the sender's display name for first-person messages
+(`"I'll be out next week"`).
+
 **Future OOO support** — if a message says "OOO next week", the start date is
-stored and the member's status stays `available` until that date arrives.
-`GET /members` automatically activates pending OOOs without any further action.
+stored in `slack_ooo_start` and the member's status stays `available` until that date arrives.
+`GET /members` automatically activates pending OOOs on every request without any further action.
+When the end date passes (compared by calendar day, not UTC time), the member is automatically
+restored to `available` and the OOO schedule is cleared.
 
 Returns:
 ```json
@@ -211,7 +218,7 @@ Returns:
     {
       "memberId": "mem-007",
       "memberName": "Jordan Kim",
-      "personUsername": "jordan.kim",
+      "personUsername": "Jordan Kim",
       "startDate": "3/3/2026",
       "endDate": "3/7/2026",
       "reason": "vacation",
@@ -230,8 +237,24 @@ Returns:
 | `skipped` | Detected but no member match, already expired, or manually overridden |
 
 **Matching** — names are fuzzy-matched using `difflib.SequenceMatcher` (threshold 0.75).
-Slack display names like `"jordan.lee"` or just `"Jordan"` will match `"Jordan Lee"`.
+Names like `"jordan"` or `"Jordan K."` will match `"Jordan Kim"`.
 Members with a manual override (`manually_overridden = true`) are never modified.
+
+**Stale check** — entries whose end date is a past calendar day are skipped.
+End dates without a time component (e.g. `"2/22/2026"`) are compared by date only,
+not by UTC timestamp, so a sync running after midnight UTC on the end day still applies correctly.
+
+#### `GET /timeoff/debug` — Pipeline trace
+
+Runs the full Slack → Gemini → member-matching pipeline and returns a per-message breakdown
+without writing anything to the database. Use this to diagnose why a sync is not picking up
+a message.
+
+Each message in the response includes:
+- `filtered` / `filter_reason` — whether it was skipped before Gemini (e.g. bot message, empty text)
+- `is_time_off` — Gemini's classification
+- `person_username`, `start_date`, `end_date` — what Gemini extracted
+- `match_result` — e.g. `matched:mem-001 (Alex Chen) [apply_now]` or `skip:no_match (person='...')`
 
 ---
 

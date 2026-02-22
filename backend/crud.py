@@ -9,8 +9,9 @@ All functions accept a SQLModel Session and return typed Pydantic objects
 from __future__ import annotations
 
 import difflib
+import re
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
@@ -320,6 +321,22 @@ def _best_member_match(username: str, all_members: list[TeamMember]) -> TeamMemb
     return None
 
 
+_SLACK_ID_RE = re.compile(r"^[UW][A-Z0-9]{6,}$")
+
+
+def _is_slack_user_id(s: str) -> bool:
+    """Return True if s looks like a Slack user/workspace ID (e.g. U08ABC123)."""
+    return bool(_SLACK_ID_RE.match(s))
+
+
+def _member_by_slack_id(slack_id: str, all_members: list[TeamMember]) -> TeamMember | None:
+    """Exact match on TeamMember.slack_user_id."""
+    for m in all_members:
+        if m.slack_user_id == slack_id:
+            return m
+    return None
+
+
 def tick_slack_ooo_status(db: Session) -> tuple[list[str], list[str]]:
     """
     Activate pending Slack OOOs (start_date has arrived) and restore expired ones.
@@ -341,6 +358,11 @@ def tick_slack_ooo_status(db: Session) -> tuple[list[str], list[str]]:
         ooo_until = _ensure_utc(m.slack_ooo_until)
         ooo_start = _ensure_utc(m.slack_ooo_start)
 
+        # Restore: OOO window has ended.
+        # Compare calendar dates, not UTC datetimes — a date-only end like "2/22"
+        # parses to midnight UTC, which would wrongly trigger a restore if the sync
+        # runs even one second into that UTC day.
+        if ooo_until is not None and ooo_until.date() < now.date():
         # Restore: OOO window has ended.
         # Compare calendar dates so an OOO ending "today" stays active all day,
         # matching the same logic used in apply_timeoff_entries.
@@ -374,9 +396,11 @@ def apply_timeoff_entries(
     entries: list,  # list[TimeOffEntry] — avoid circular import at module level
 ) -> TimeOffSyncResult:
     """
-    Match each time-off entry to a team member by fuzzy name and persist their
-    OOO schedule.  Future OOOs are stored but not activated yet — tick_slack_ooo_status
-    will activate them when start_date arrives.
+    Match each time-off entry to a team member and persist their OOO schedule.
+    Matching priority: exact Slack user ID (when person_username looks like U/W + alphanumeric)
+    → fuzzy display name (SequenceMatcher ratio >= 0.75).
+    Future OOOs are stored but not activated yet — tick_slack_ooo_status will activate them
+    when start_date arrives.
     """
     now = datetime.now(timezone.utc)
     all_members = db.exec(select(TeamMember)).all()
@@ -409,6 +433,7 @@ def apply_timeoff_entries(
             continue
 
         member = _best_member_match(entry.person_username, all_members)
+
         if not member:
             logger.warning("SKIP person=%r — no team member matched (fuzzy ratio < 0.75)", entry.person_username)
             skipped += 1
@@ -438,6 +463,13 @@ def apply_timeoff_entries(
             member.confidence_score = 0.0
 
         db.add(member)
+
+        # Resolve coverage display name from DB when it's a Slack user ID
+        coverage_display = entry.coverage_username
+        if coverage_display and _is_slack_user_id(coverage_display):
+            coverage_member = _member_by_slack_id(coverage_display, all_members)
+            coverage_display = coverage_member.name if coverage_member else coverage_display
+
         changes.append(MemberOOOChange(
             memberId=member.id,
             memberName=member.name,
@@ -445,7 +477,7 @@ def apply_timeoff_entries(
             startDate=entry.start_date,
             endDate=entry.end_date,
             reason=entry.reason,
-            coverageBy=entry.coverage_username,
+            coverageBy=coverage_display,
             pending=is_pending,
         ))
 
@@ -459,6 +491,51 @@ def apply_timeoff_entries(
         skipped=skipped,
         changes=changes,
     )
+
+
+def simulate_timeoff_matching(
+    db: Session,
+    entries: list,
+) -> dict[str, str]:
+    """
+    Dry-run version of apply_timeoff_entries.  Returns a mapping of
+    entry index → human-readable match result string, with no DB writes.
+    Used by GET /timeoff/debug.
+    """
+    now = datetime.now(timezone.utc)
+    all_members = db.exec(select(TeamMember)).all()
+    results: dict[str, str] = {}
+    processed_ids: set[str] = set()
+
+    for i, entry in enumerate(entries):
+        key = str(i)
+        start_dt = _parse_date_str(entry.start_date) or now
+        end_dt   = _parse_date_str(entry.end_date)
+
+        if end_dt is not None and end_dt.date() < now.date():
+            results[key] = "skip:stale (OOO window already passed)"
+            continue
+
+        member = _best_member_match(entry.person_username, all_members)
+
+        if not member:
+            results[key] = f"skip:no_match (person={entry.person_username!r})"
+            continue
+
+        if member.manually_overridden:
+            results[key] = f"skip:manual_override ({member.name})"
+            continue
+
+        if member.id in processed_ids:
+            results[key] = f"skip:duplicate ({member.name})"
+            continue
+
+        processed_ids.add(member.id)
+        is_pending = start_dt > now
+        label = "pending" if is_pending else "apply_now"
+        results[key] = f"matched:{member.id} ({member.name}) [{label}]"
+
+    return results
 
 
 # ── Tasks ──────────────────────────────────────────────────────────────────────

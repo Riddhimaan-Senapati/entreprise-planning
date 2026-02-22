@@ -43,6 +43,7 @@ class TeamMember(SQLModel, table=True):
     ics_path:            Optional[str]  = None
     last_synced:         datetime       = Field(default_factory=datetime.utcnow)
     manager_notes:       str            = ""
+    slack_user_id:       Optional[str]  = None   # Slack user ID (e.g. U08ABC123) for exact matching
     # Slack-sourced OOO schedule — set by POST /timeoff/sync, never by manual override.
     # Future OOO: start is stored but leave_status stays 'available' until tick activates it.
     slack_ooo_start:     Optional[datetime] = None   # when OOO begins (may be in the future)
@@ -197,3 +198,35 @@ class TimeOffSyncResult(BaseModel):
     pending:  int                  # applied but start_date is in the future
     skipped:  int                  # detected but couldn't be matched or already passed
     changes:  list[MemberOOOChange]
+
+
+# ── Debug schemas ──────────────────────────────────────────────────────────────
+
+class MessageDebug(BaseModel):
+    """Per-message trace returned by GET /timeoff/debug."""
+    ts:             str
+    sender_id:      str
+    sender_name:    str
+    text_preview:   str             # first 120 chars of raw message
+    filtered:       bool = False    # True if skipped before Gemini (subtype / empty)
+    filter_reason:  Optional[str] = None
+    is_time_off:    Optional[bool] = None
+    person_username: Optional[str] = None
+    start_date:     Optional[str] = None
+    end_date:       Optional[str] = None
+    reason:         Optional[str] = None
+    coverage_username: Optional[str] = None
+    match_result:   Optional[str] = None  # e.g. "matched:mem-007 (Jordan Kim)" or skip reason
+
+
+class TimeOffDebugResult(BaseModel):
+    """Full pipeline trace returned by GET /timeoff/debug (no DB writes)."""
+    channel_id:         str
+    hours_back:         int
+    total_fetched:      int
+    human_messages:     int
+    filtered_messages:  int
+    sent_to_gemini:     int
+    time_off_detected:  int
+    would_apply:        int
+    messages:           list[MessageDebug]

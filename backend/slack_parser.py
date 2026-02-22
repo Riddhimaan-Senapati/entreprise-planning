@@ -71,18 +71,18 @@ agent = Agent(
     output_type=TimeOffDetails,
     system_prompt=(
         "You are an HR assistant that reads Slack messages and extracts time-off information. "
-        "You will be given the message text, the Slack username of the sender, and the exact "
+        "You will be given the message text, the display name of the sender, and the exact "
         "date and time the message was sent. "
         "Use the message sent date to resolve any partial or relative dates to full dates "
         "including the correct year (e.g. '2/21' sent in 2026 → '2/21/2026', "
         "'next Monday' sent on 2026-02-21 → '2/23/2026'). "
         "Determine if the message is a time-off request or announcement. "
-        "If it is, extract: who is taking time off (use the sender's username unless the message "
-        "clearly states someone else), the full start and end dates (with year), the reason if "
-        "mentioned, and who will cover their work. "
-        "For coverage: if the person was @mentioned, use their resolved display name; "
-        "if they were named in plain text, use that name as written. "
-        "Only set coverage_username to null if no coverage person is mentioned at all. "
+        "If it is, extract: who is taking time off (use the sender's display name if the message "
+        "is written in first person or if no other name is explicitly mentioned), "
+        "the full start and end dates with year, the reason if stated, "
+        "and who will cover their work if mentioned. "
+        "Always return plain text names (e.g. 'Alex Chen') for person_username and coverage_username — "
+        "never return Slack user IDs or <@...> tokens. "
         "If the message is not about time off (e.g. general chat, a question, a system event), "
         "set is_time_off_request to false and leave all other fields null."
     ),
@@ -119,6 +119,15 @@ def resolve_mentions(text: str, client: WebClient) -> str:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+def _clean_user_ref(s: str) -> str:
+    """
+    Normalise a Slack user reference extracted from Gemini output.
+    Strips the leading '@' and any '|displayname' suffix so the result is
+    a bare user ID (e.g. 'U08ABC123') or a plain name ('Jordan Kim').
+    """
+    return s.lstrip("@").split("|")[0].strip()
+
+
 def ts_to_datetime(ts: str) -> datetime:
     return datetime.fromtimestamp(float(ts), tz=timezone.utc)
 
@@ -139,12 +148,12 @@ def _retry_delay_from_error(exc: ModelHTTPError) -> int:
 
 
 # ── Core parsing ───────────────────────────────────────────────────────────────
-def parse_message(resolved_text: str, sender_name: str, sent_at: datetime) -> TimeOffDetails:
+def parse_message(text: str, sender_name: str, sent_at: datetime) -> TimeOffDetails:
     """Run a single message through Gemini, retrying on 429."""
     prompt = (
-        f"Sender Slack username : @{sender_name}\n"
-        f"Message sent at       : {format_datetime(sent_at)} (year: {sent_at.year})\n\n"
-        f"Message:\n{resolved_text}"
+        f"Sender display name: {sender_name}\n"
+        f"Message sent at    : {format_datetime(sent_at)} (year: {sent_at.year})\n\n"
+        f"Message:\n{text}"
     )
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -195,15 +204,14 @@ def fetch_and_parse(
             continue
 
         sent_at = ts_to_datetime(msg["ts"])
-        sender_id = msg.get("user", "")
-        sender_name = resolve_user(slack, sender_id) if sender_id else "unknown"
-        resolved_text = resolve_mentions(raw_text, slack)
+        sender_id = msg.get("user", "") or "unknown"
+        sender_name = resolve_user(slack, sender_id) if sender_id != "unknown" else "unknown"
 
-        details = parse_message(resolved_text, sender_name, sent_at)
+        details = parse_message(raw_text, sender_name, sent_at)
 
         if details.is_time_off_request:
-            person = (details.person_username or sender_name).lstrip("@")
-            coverage = details.coverage_username.lstrip("@") if details.coverage_username else None
+            person = _clean_user_ref(details.person_username or sender_name)
+            coverage = _clean_user_ref(details.coverage_username) if details.coverage_username else None
             entries.append(TimeOffEntry(
                 sent_at=sent_at.isoformat(),
                 sender=sender_name,
@@ -221,3 +229,97 @@ def fetch_and_parse(
             time.sleep(INTER_CALL_DELAY_SECONDS)
 
     return entries
+
+
+def fetch_and_parse_debug(
+    slack: WebClient,
+    channel_id: str,
+    hours_back: int = 24,
+    limit: int = 100,
+) -> tuple[list[TimeOffEntry], list[dict]]:
+    """
+    Same as fetch_and_parse but also returns a per-message debug trace.
+    The second return value is a list of dicts suitable for MessageDebug.
+    No DB writes happen here.
+    """
+    from typing import Any
+
+    now = datetime.now(tz=timezone.utc)
+    oldest_ts = str(now.timestamp() - hours_back * 3600)
+
+    resp = slack.conversations_history(channel=channel_id, oldest=oldest_ts, limit=limit)
+    all_messages = list(reversed(resp.get("messages", [])))
+
+    debug_rows: list[dict[str, Any]] = []
+    entries: list[TimeOffEntry] = []
+
+    for msg in all_messages:
+        ts_str = msg.get("ts", "")
+        sender_id = msg.get("user", "") or "unknown"
+        raw_text = msg.get("text", "").strip()
+        subtype = msg.get("subtype")
+        msg_type = msg.get("type", "")
+
+        row: dict[str, Any] = {
+            "ts": ts_str,
+            "sender_id": sender_id,
+            "sender_name": sender_id,  # filled in below if not filtered
+            "text_preview": raw_text[:120],
+            "filtered": False,
+            "filter_reason": None,
+            "is_time_off": None,
+            "person_username": None,
+            "start_date": None,
+            "end_date": None,
+            "reason": None,
+            "coverage_username": None,
+            "match_result": None,
+        }
+
+        # Filter checks
+        if msg_type != "message" or subtype:
+            row["filtered"] = True
+            row["filter_reason"] = f"subtype={subtype!r}" if subtype else f"type={msg_type!r}"
+            debug_rows.append(row)
+            continue
+
+        if not raw_text:
+            row["filtered"] = True
+            row["filter_reason"] = "empty text"
+            debug_rows.append(row)
+            continue
+
+        sent_at = ts_to_datetime(ts_str)
+        sender_name = resolve_user(slack, sender_id) if sender_id != "unknown" else "unknown"
+        row["sender_name"] = sender_name
+
+        details = parse_message(raw_text, sender_name, sent_at)
+        row["is_time_off"] = details.is_time_off_request
+
+        if details.is_time_off_request:
+            person = _clean_user_ref(details.person_username or sender_name)
+            coverage = _clean_user_ref(details.coverage_username) if details.coverage_username else None
+            row["person_username"] = person
+            row["start_date"] = details.start_date
+            row["end_date"] = details.end_date
+            row["reason"] = details.reason
+            row["coverage_username"] = coverage
+
+            entries.append(TimeOffEntry(
+                sent_at=sent_at.isoformat(),
+                sender=sender_name,
+                message=raw_text,
+                person_username=person,
+                start_date=details.start_date,
+                end_date=details.end_date,
+                reason=details.reason,
+                coverage_username=coverage,
+                notes=details.notes,
+            ))
+
+        debug_rows.append(row)
+
+        if len(debug_rows) < len(all_messages):
+            time.sleep(INTER_CALL_DELAY_SECONDS)
+
+    return entries, debug_rows

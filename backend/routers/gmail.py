@@ -9,14 +9,15 @@ Routes:
 """
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from crud import _best_member_match, _parse_date_str, apply_timeoff_entries, tick_slack_ooo_status
 from database import get_session
-from gmail_parser import fetch_and_parse_gmail, is_gmail_configured
-from models import TimeOffSyncResult
+from gmail_parser import fetch_and_parse_gmail, fetch_and_parse_gmail_debug, is_gmail_configured
+from models import TeamMember, TimeOffSyncResult
 
 logger = logging.getLogger(__name__)
 

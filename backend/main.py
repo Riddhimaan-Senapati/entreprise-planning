@@ -13,9 +13,15 @@ Coverage-intelligence endpoints (new):
     GET  /tasks/{id}                      → single task
     PATCH /tasks/{id}/status              → update task status
 
-Slack / time-off endpoints (existing):
-    GET  /timeoff                         → fetch last 24h Slack time-off entries
+Slack / time-off endpoints:
+    GET  /timeoff                         → fetch last 24h Slack time-off entries (read-only)
+    POST /timeoff/sync                    → sync Slack time-off announcements to DB
+    GET  /timeoff/debug                   → debug Slack pipeline (no DB writes)
     POST /ping                            → DM a team member to check availability
+
+Gmail OOO endpoints:
+    POST /gmail/scan                      → scan Gmail inbox for OOO emails, update DB
+    GET  /gmail/debug                     → debug Gmail pipeline (no DB writes)
 """
 
 import logging
@@ -43,14 +49,14 @@ from slack_sdk.errors import SlackApiError
 from sqlmodel import Session
 
 from database import create_db_and_tables, engine, get_session
-from models import SummaryOut
-from crud import get_summary
+from models import SummaryOut, TimeOffSyncResult, TimeOffDebugResult, MessageDebug
+from crud import apply_timeoff_entries, get_summary, simulate_timeoff_matching, tick_slack_ooo_status
 from routers.members import router as members_router
 from routers.tasks import router as tasks_router
 from routers.calendar import router as calendar_router
 from routers.gmail import router as gmail_router
 from seed import seed
-from slack_parser import TimeOffEntry, fetch_and_parse
+from slack_parser import TimeOffEntry, fetch_and_parse, fetch_and_parse_debug
 
 load_dotenv()
 
@@ -152,6 +158,99 @@ def get_timeoff(
         raise HTTPException(status_code=500, detail=str(e))
 
     return entries
+
+
+@app.post(
+    "/timeoff/sync",
+    response_model=TimeOffSyncResult,
+    summary="Sync Slack time-off announcements to member leave statuses",
+    description=(
+        "Fetches recent Slack messages, runs them through Gemini AI to extract "
+        "time-off announcements, fuzzy-matches each person to a team member, and "
+        "updates their leave_status in the database. "
+        "Future OOOs (start_date > today) are stored and activate automatically when "
+        "GET /members is called after the start date arrives. "
+        "Returns a summary of what was detected, applied, and skipped."
+    ),
+)
+def post_timeoff_sync(
+    hours: int = Query(default=24, ge=1, le=720, description="How many hours of Slack history to scan"),
+    limit: int = Query(default=100, ge=1, le=999, description="Max messages to fetch from Slack"),
+    db: Session = Depends(get_session),
+):
+    # Tick first: activate any pending OOOs that have started, restore expired ones
+    tick_slack_ooo_status(db)
+
+    try:
+        entries = fetch_and_parse(
+            slack=slack_client,
+            channel_id=SLACK_CHANNEL_ID,
+            hours_back=hours,
+            limit=limit,
+        )
+    except SlackApiError as e:
+        raise HTTPException(status_code=502, detail=f"Slack error: {e.response['error']}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return apply_timeoff_entries(db, entries)
+
+
+@app.get(
+    "/timeoff/debug",
+    response_model=TimeOffDebugResult,
+    summary="Debug Slack time-off pipeline (no DB writes)",
+    description=(
+        "Runs the full Slack → Gemini → member-matching pipeline and returns a "
+        "per-message trace showing exactly what was fetched, what Gemini classified, "
+        "and what the member-matching result would be — without writing anything to the DB."
+    ),
+)
+def get_timeoff_debug(
+    hours: int = Query(default=24, ge=1, le=720),
+    limit: int = Query(default=100, ge=1, le=999),
+    db: Session = Depends(get_session),
+):
+    try:
+        entries, debug_rows = fetch_and_parse_debug(
+            slack=slack_client,
+            channel_id=SLACK_CHANNEL_ID,
+            hours_back=hours,
+            limit=limit,
+        )
+    except SlackApiError as e:
+        raise HTTPException(status_code=502, detail=f"Slack error: {e.response['error']}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    match_results = simulate_timeoff_matching(db, entries)
+
+    # Stitch match results back onto the debug rows that were classified as time-off
+    entry_idx = 0
+    for row in debug_rows:
+        if row.get("is_time_off"):
+            row["match_result"] = match_results.get(str(entry_idx), "unknown")
+            entry_idx += 1
+
+    total = len(debug_rows)
+    filtered = sum(1 for r in debug_rows if r["filtered"])
+    human = total - filtered
+    detected = sum(1 for r in debug_rows if r.get("is_time_off"))
+    would_apply = sum(
+        1 for v in match_results.values() if v.startswith("matched:")
+    )
+
+    return TimeOffDebugResult(
+        channel_id=SLACK_CHANNEL_ID,
+        hours_back=hours,
+        total_fetched=total,
+        human_messages=human,
+        filtered_messages=filtered,
+        sent_to_gemini=human,
+        time_off_detected=detected,
+        would_apply=would_apply,
+        messages=[MessageDebug(**r) for r in debug_rows],
+    )
 
 
 # ── Availability ping ───────────────────────────────────────────────────────────

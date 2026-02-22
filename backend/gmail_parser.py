@@ -416,3 +416,82 @@ def fetch_and_parse_gmail(max_results: int = 5) -> list[GmailTimeOffEntry]:
         len(message_stubs), len(entries),
     )
     return entries
+
+
+def fetch_and_parse_gmail_debug(
+    max_results: int = 20,
+) -> tuple[str, int, int, list[GmailEmailTrace]]:
+    """
+    Dry-run version of fetch_and_parse_gmail.
+    Searches Gmail and runs Gemini classification but does NOT filter to OOO-only.
+    Returns (search_query, search_days, emails_found, traces) where each trace
+    contains the full Gemini output (or an error string) for every email retrieved.
+    No database writes are performed.
+    """
+    logger.info(
+        "DEBUG Gmail scan (no DB writes): user=%s max_results=%d lookback=%dd",
+        GMAIL_USER_EMAIL, max_results, _SEARCH_DAYS,
+    )
+
+    service = build_gmail_service()
+
+    list_response = service.users().messages().list(
+        userId=GMAIL_USER_EMAIL,
+        q=GMAIL_SEARCH_QUERY,
+        maxResults=max_results,
+    ).execute()
+
+    message_stubs = list_response.get("messages", [])
+    found = len(message_stubs)
+    logger.info("DEBUG Gmail search returned %d message stub(s)", found)
+
+    traces: list[GmailEmailTrace] = []
+
+    for i, stub in enumerate(message_stubs):
+        msg = service.users().messages().get(
+            userId=GMAIL_USER_EMAIL,
+            id=stub["id"],
+            format="full",
+        ).execute()
+
+        headers     = msg.get("payload", {}).get("headers", [])
+        subject     = _get_header(headers, "Subject") or "(no subject)"
+        from_raw    = _get_header(headers, "From")
+        sender_name, sender_email = _parse_sender(from_raw)
+
+        internal_ms = int(msg.get("internalDate", 0))
+        sent_at     = datetime.fromtimestamp(internal_ms / 1000, tz=timezone.utc)
+
+        body         = _decode_body(msg.get("payload", {}))
+        body_preview = body[:300].strip()
+
+        error_str: str | None = None
+        details: EmailOOODetails | None = None
+        try:
+            details = _parse_email_for_ooo(subject, sender_name, sender_email, body, sent_at)
+        except Exception as exc:
+            error_str = str(exc)
+            logger.warning("DEBUG Gemini error for id=%s subject=%r: %s", stub["id"], subject, exc)
+
+        traces.append(GmailEmailTrace(
+            id=stub["id"],
+            subject=subject,
+            sender_name=sender_name,
+            sender_email=sender_email,
+            sent_at=sent_at.isoformat(),
+            body_length=len(body),
+            body_preview=body_preview,
+            is_ooo=details.is_ooo if details else None,
+            person_name=details.person_name if details else None,
+            start_date=details.start_date if details else None,
+            end_date=details.end_date if details else None,
+            reason=details.reason if details else None,
+            notes=details.notes if details else None,
+            error=error_str,
+        ))
+
+        if i < len(message_stubs) - 1:
+            time.sleep(INTER_CALL_DELAY_SECONDS)
+
+    logger.info("DEBUG fetch_and_parse_gmail_debug complete: scanned=%d", found)
+    return GMAIL_SEARCH_QUERY, _SEARCH_DAYS, found, traces
