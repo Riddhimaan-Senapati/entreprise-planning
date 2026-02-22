@@ -12,7 +12,7 @@ import { triggerGmailScan, triggerSlackSync } from '@/lib/api-client';
 import type { TimeOffSyncResult, MemberOOOChange } from '@/lib/types';
 import { useAppStore } from '@/store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 interface ProcessedResult {
   memberId: string;
