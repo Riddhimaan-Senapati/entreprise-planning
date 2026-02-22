@@ -21,8 +21,8 @@ export interface Task {
 }
 
 export interface DataSourceSignal {
-  calendarPct: number;       // 0-100, calendar integration fill %
-  taskLoadHours: number;     // current task load in hours
+  calendarPct: number;       // 0-100, percentage of work week that is free
+  taskLoadHours?: number;    // retained for backend compat, not displayed
   leaveStatus: 'available' | 'ooo';
 }
 

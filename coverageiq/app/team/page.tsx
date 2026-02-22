@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, CalendarOff, Pencil } from 'lucide-react';
+import { Search, CalendarOff, Pencil, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight } from 'lucide-react';
 import { useTeamMembers } from '@/hooks/use-api';
-import ConfidenceRing from '@/components/dashboard/ConfidenceRing';
 import { TeamMember } from '@/lib/types';
-import { cn, getConfidenceTextClass } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { updateMemberNotes, updateMemberSkills } from '@/lib/api-client';
 import { useAppStore } from '@/store';
 
@@ -35,7 +34,7 @@ function NotesField({ memberId, initialValue }: { memberId: string; initialValue
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   return (
-    <div className="mt-3 pt-3 border-t border-border">
+    <div>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
           Manager Notes
@@ -109,146 +108,246 @@ function SkillsEditor({ memberId, initialSkills }: { memberId: string; initialSk
 
   if (!editing) {
     return (
-      <div className="flex flex-wrap gap-1 mt-3 items-center">
-        {skills.map((skill) => (
-          <span
-            key={skill}
-            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-surface2 text-muted-foreground border border-border/60"
+      <div>
+        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block mb-1.5">
+          Skills
+        </span>
+        <div className="flex flex-wrap gap-1 items-center">
+          {skills.map((skill) => (
+            <span
+              key={skill}
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-surface2 text-muted-foreground border border-border/60"
+            >
+              {skill}
+            </span>
+          ))}
+          <button
+            onClick={startEditing}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-status-green/40 transition-colors"
           >
-            {skill}
-          </span>
-        ))}
-        <button
-          onClick={startEditing}
-          className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-status-green/40 transition-colors"
-        >
-          {skills.length === 0 ? '+ Add skills' : '+ Edit'}
-        </button>
+            {skills.length === 0 ? '+ Add skills' : '+ Edit'}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-3 space-y-1.5">
-      <div className="flex flex-wrap gap-1 p-2 bg-bg-base border border-status-green/30 rounded-lg min-h-[34px] items-center">
-        {draft.map((skill) => (
-          <span
-            key={skill}
-            className="flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-surface2 text-muted-foreground border border-border/60"
-          >
-            {skill}
-            <button
-              type="button"
-              onClick={() => setDraft((prev) => prev.filter((s) => s !== skill))}
-              className="ml-0.5 leading-none text-muted-foreground/50 hover:text-status-red transition-colors"
+    <div>
+      <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block mb-1.5">
+        Skills
+      </span>
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap gap-1 p-2 bg-bg-base border border-status-green/30 rounded-lg min-h-[34px] items-center">
+          {draft.map((skill) => (
+            <span
+              key={skill}
+              className="flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-surface2 text-muted-foreground border border-border/60"
             >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => { if (input.trim()) commitInput(input); }}
-          placeholder={draft.length === 0 ? 'Add skill, press Enter…' : 'Add more…'}
-          className="bg-transparent text-[10px] font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none flex-1 min-w-[80px]"
-        />
-      </div>
-      <p className="text-[9px] font-mono text-muted-foreground/50">Enter or comma to add · Backspace to remove last</p>
-      <div className="flex gap-2">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 py-1 rounded-lg bg-status-green text-bg-base text-[10px] font-mono font-medium hover:bg-status-green/90 transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          onClick={() => setEditing(false)}
-          className="px-3 py-1 rounded-lg border border-border text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Cancel
-        </button>
+              {skill}
+              <button
+                type="button"
+                onClick={() => setDraft((prev) => prev.filter((s) => s !== skill))}
+                className="ml-0.5 leading-none text-muted-foreground/50 hover:text-status-red transition-colors"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => { if (input.trim()) commitInput(input); }}
+            placeholder={draft.length === 0 ? 'Add skill, press Enter…' : 'Add more…'}
+            className="bg-transparent text-[10px] font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none flex-1 min-w-[80px]"
+          />
+        </div>
+        <p className="text-[9px] font-mono text-muted-foreground/50">Enter or comma to add · Backspace to remove last</p>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-1 rounded-lg bg-status-green text-bg-base text-[10px] font-mono font-medium hover:bg-status-green/90 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="px-3 py-1 rounded-lg border border-border text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Member card ────────────────────────────────────────────────────────────────
+// ── Sort utilities ─────────────────────────────────────────────────────────────
 
-const STATUS_STYLES = {
-  available: 'bg-status-green/10 text-status-green border-status-green/30',
-  ooo:       'bg-status-red/10 text-status-red border-status-red/30',
-} as const;
+type SortCol = 'name' | 'team' | 'calendarPct' | 'status';
+type SortDir = 'asc' | 'desc';
 
-function MemberCard({ member, index }: { member: TeamMember; index: number }) {
-  const { overrides } = useAppStore();
-  const override = overrides.find((o) => o.memberId === member.id);
-  const effectiveStatus = (override?.status ?? member.dataSources.leaveStatus) as keyof typeof STATUS_STYLES;
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ChevronsUpDown className="w-3 h-3 opacity-30 ml-1 inline" />;
+  return dir === 'asc'
+    ? <ChevronUp className="w-3 h-3 text-status-green ml-1 inline" />
+    : <ChevronDown className="w-3 h-3 text-status-green ml-1 inline" />;
+}
+
+// ── Expanded row: skills + notes editing ──────────────────────────────────────
+
+function ExpandedDetail({ member }: { member: TeamMember }) {
+  return (
+    <tr>
+      <td colSpan={7} className="px-6 pb-5 bg-bg-surface2/30">
+        <div className="pt-3 pl-12 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-border/40">
+          <SkillsEditor memberId={member.id} initialSkills={member.skills} />
+          <NotesField memberId={member.id} initialValue={member.managerNotes ?? ''} />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── Table row ─────────────────────────────────────────────────────────────────
+
+function MemberRow({
+  member,
+  expanded,
+  onToggle,
+  effectiveStatus,
+}: {
+  member: TeamMember;
+  expanded: boolean;
+  onToggle: () => void;
+  effectiveStatus: string;
+}) {
   const isOOO = effectiveStatus === 'ooo';
-  const hasOverride = !!override || member.manuallyOverridden === true;
+  const hasOverride = member.manuallyOverridden === true;
+  const initials = member.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const calPct = member.dataSources.calendarPct;
+
+  const calTextClass =
+    calPct > 70 ? 'text-status-green' : calPct > 40 ? 'text-status-yellow' : 'text-status-red';
+  const calBarClass =
+    calPct > 70 ? 'bg-status-green' : calPct > 40 ? 'bg-status-yellow' : 'bg-status-red';
 
   return (
-    <div
-      className={cn(
-        'flex flex-col p-4 rounded-xl bg-bg-surface border border-border transition-colors',
-        'hover:border-border/60',
-        isOOO && 'opacity-60'
-      )}
-    >
-      {/* Top: ring + name/role/badges */}
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0">
-          <ConfidenceRing score={member.confidenceScore} size={52} strokeWidth={4} index={index}>
-            <span className="text-xs font-bold font-heading text-foreground">
-              {member.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-            </span>
-          </ConfidenceRing>
-        </div>
-
-        <div className="flex-1 min-w-0 mt-0.5">
-          <div className="flex items-start gap-1.5">
-            <p className="text-sm font-heading font-semibold text-foreground leading-tight truncate flex-1">
-              {member.name}
-            </p>
-            {isOOO && <CalendarOff className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />}
-            {hasOverride && !isOOO && <Pencil className="w-3 h-3 text-status-yellow flex-shrink-0 mt-0.5" />}
+    <>
+      <tr
+        onClick={onToggle}
+        className={cn(
+          'border-b border-border cursor-pointer transition-colors group',
+          'hover:bg-bg-surface2/60',
+          expanded && 'bg-bg-surface2/40',
+          isOOO && 'opacity-60'
+        )}
+      >
+        {/* Status dot */}
+        <td className="px-4 py-3 w-10">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                isOOO ? 'bg-status-red' : 'bg-status-green'
+              )}
+            />
+            {hasOverride && <Pencil className="w-3 h-3 text-status-yellow" />}
           </div>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{member.role}</p>
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-bg-surface2 text-muted-foreground">
-              {member.team}
-            </span>
-            <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded border capitalize', STATUS_STYLES[effectiveStatus])}>
-              {effectiveStatus === 'ooo' ? 'OOO' : effectiveStatus}
+        </td>
+
+        {/* Member: avatar + name + role */}
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-bg-surface2 border border-border text-xs font-bold font-heading flex items-center justify-center flex-shrink-0 text-foreground">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium font-heading text-foreground leading-tight">
+                  {member.name}
+                </p>
+                {isOOO && <CalendarOff className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+              </div>
+              <p className="text-xs text-muted-foreground truncate max-w-[200px]">{member.role}</p>
+            </div>
+          </div>
+        </td>
+
+        {/* Team */}
+        <td className="px-4 py-3">
+          <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-border bg-bg-surface2 text-muted-foreground">
+            {member.team}
+          </span>
+        </td>
+
+        {/* Calendar availability */}
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-20 h-1.5 rounded-full bg-bg-base overflow-hidden flex-shrink-0">
+              <div
+                className={cn('h-full rounded-full transition-all', calBarClass)}
+                style={{ width: `${calPct}%` }}
+              />
+            </div>
+            <span className={cn('text-xs font-mono tabular-nums font-medium', calTextClass)}>
+              {calPct}%
             </span>
           </div>
-        </div>
-      </div>
+        </td>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-4 mt-3 text-xs font-mono text-muted-foreground">
-        <span>
-          <span className="text-foreground">{member.dataSources.calendarPct}%</span>
-          {' '}cal
-        </span>
-        <span>
-          <span className="text-foreground">{member.dataSources.taskLoadHours}h</span>
-          {' '}tasks
-        </span>
-        <span className={cn('ml-auto font-semibold tabular-nums', getConfidenceTextClass(member.confidenceScore))}>
-          {Math.round(member.confidenceScore)}
-        </span>
-      </div>
+        {/* Status badge */}
+        <td className="px-4 py-3">
+          <span
+            className={cn(
+              'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+              isOOO
+                ? 'bg-status-red/10 text-status-red border-status-red/30'
+                : 'bg-status-green/10 text-status-green border-status-green/30'
+            )}
+          >
+            {isOOO ? 'OOO' : 'Available'}
+          </span>
+        </td>
 
-      {/* Skills */}
-      <SkillsEditor memberId={member.id} initialSkills={member.skills} />
+        {/* Skills (compact) */}
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1 flex-wrap">
+            {member.skills.slice(0, 3).map((s) => (
+              <span
+                key={s}
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-surface2 text-muted-foreground border border-border/60"
+              >
+                {s}
+              </span>
+            ))}
+            {member.skills.length > 3 && (
+              <span className="text-[10px] font-mono text-muted-foreground/60">
+                +{member.skills.length - 3}
+              </span>
+            )}
+            {member.skills.length === 0 && (
+              <span className="text-[10px] font-mono text-muted-foreground/40">—</span>
+            )}
+          </div>
+        </td>
 
-      {/* Manager notes */}
-      <NotesField memberId={member.id} initialValue={member.managerNotes ?? ''} />
-    </div>
+        {/* Expand chevron */}
+        <td className="px-3 py-3 w-8">
+          <ChevronRight
+            className={cn(
+              'w-3.5 h-3.5 text-muted-foreground/40 transition-transform duration-200',
+              expanded && 'rotate-90'
+            )}
+          />
+        </td>
+      </tr>
+
+      {expanded && <ExpandedDetail member={member} />}
+    </>
   );
 }
 
@@ -266,34 +365,54 @@ const AVAIL_ACTIVE: Record<AvailKey, string> = {
   OOO:       'bg-status-red/10 text-status-red border-status-red/30',
 };
 
+type HeaderCol = {
+  key: SortCol | null;
+  label: string;
+};
+
+const HEADERS: HeaderCol[] = [
+  { key: null,           label: '' },
+  { key: 'name',         label: 'Member' },
+  { key: 'team',         label: 'Team' },
+  { key: 'calendarPct',  label: 'Availability' },
+  { key: 'status',       label: 'Status' },
+  { key: null,           label: 'Skills' },
+  { key: null,           label: '' },
+];
+
 export default function TeamPage() {
   const { data: members, loading } = useTeamMembers();
   const { overrides } = useAppStore();
   const [teamFilter, setTeamFilter] = useState<TabKey>('All');
   const [availFilter, setAvailFilter] = useState<AvailKey>('All');
   const [search, setSearch] = useState('');
+  const [sortCol, setSortCol] = useState<SortCol>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const all = members ?? [];
-
-  // Compute effective status respecting Zustand overrides (same logic as MemberCard)
-  function effectiveStatus(memberId: string, dbStatus: string) {
+  function getEffectiveStatus(memberId: string, dbStatus: string) {
     return overrides.find((o) => o.memberId === memberId)?.status ?? dbStatus;
   }
 
-  const counts = TEAM_TABS.reduce<Record<TabKey, number>>((acc, t) => {
-    acc[t] = t === 'All' ? all.length : all.filter((m) => m.team === t).length;
-    return acc;
-  }, { All: 0, Engineering: 0, Design: 0, Product: 0 });
+  const all = members ?? [];
+
+  const counts = TEAM_TABS.reduce<Record<TabKey, number>>(
+    (acc, t) => {
+      acc[t] = t === 'All' ? all.length : all.filter((m) => m.team === t).length;
+      return acc;
+    },
+    { All: 0, Engineering: 0, Design: 0, Product: 0 }
+  );
 
   const availCounts: Record<AvailKey, number> = {
     All:       all.length,
-    Available: all.filter((m) => effectiveStatus(m.id, m.dataSources.leaveStatus) === 'available').length,
-    OOO:       all.filter((m) => effectiveStatus(m.id, m.dataSources.leaveStatus) === 'ooo').length,
+    Available: all.filter((m) => getEffectiveStatus(m.id, m.dataSources.leaveStatus) === 'available').length,
+    OOO:       all.filter((m) => getEffectiveStatus(m.id, m.dataSources.leaveStatus) === 'ooo').length,
   };
 
-  const displayed = all.filter((m) => {
+  const filtered = all.filter((m) => {
     const matchesTeam = teamFilter === 'All' || m.team === teamFilter;
-    const status = effectiveStatus(m.id, m.dataSources.leaveStatus);
+    const status = getEffectiveStatus(m.id, m.dataSources.leaveStatus);
     const matchesAvail =
       availFilter === 'All' ||
       (availFilter === 'Available' && status === 'available') ||
@@ -307,6 +426,34 @@ export default function TeamPage() {
     return matchesTeam && matchesAvail && matchesSearch;
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    const statusA = getEffectiveStatus(a.id, a.dataSources.leaveStatus);
+    const statusB = getEffectiveStatus(b.id, b.dataSources.leaveStatus);
+
+    let valA: string | number;
+    let valB: string | number;
+
+    switch (sortCol) {
+      case 'name':         valA = a.name;                    valB = b.name;                    break;
+      case 'team':         valA = a.team;                    valB = b.team;                    break;
+      case 'calendarPct':  valA = a.dataSources.calendarPct; valB = b.dataSources.calendarPct; break;
+      case 'status':       valA = statusA;                   valB = statusB;                   break;
+      default:             valA = a.name;                    valB = b.name;
+    }
+
+    if (typeof valA === 'string' && typeof valB === 'string') {
+      return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    return sortDir === 'asc'
+      ? (valA as number) - (valB as number)
+      : (valB as number) - (valA as number);
+  });
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
   if (loading && !members) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
@@ -319,13 +466,16 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-heading font-bold text-foreground">Team Directory</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {all.length} member{all.length !== 1 ? 's' : ''}
+            {filtered.length !== all.length && (
+              <span className="ml-1 text-muted-foreground/60">· {filtered.length} shown</span>
+            )}
           </p>
         </div>
 
@@ -357,7 +507,12 @@ export default function TeamPage() {
               )}
             >
               {t}
-              <span className={cn('font-mono text-[10px]', teamFilter === t ? 'text-status-green/70' : 'text-muted-foreground/50')}>
+              <span
+                className={cn(
+                  'font-mono text-[10px]',
+                  teamFilter === t ? 'text-status-green/70' : 'text-muted-foreground/50'
+                )}
+              >
                 {counts[t]}
               </span>
             </button>
@@ -378,7 +533,12 @@ export default function TeamPage() {
               )}
             >
               {a}
-              <span className={cn('font-mono text-[10px]', availFilter === a ? 'opacity-70' : 'text-muted-foreground/50')}>
+              <span
+                className={cn(
+                  'font-mono text-[10px]',
+                  availFilter === a ? 'opacity-70' : 'text-muted-foreground/50'
+                )}
+              >
                 {availCounts[a]}
               </span>
             </button>
@@ -386,12 +546,48 @@ export default function TeamPage() {
         </div>
       </div>
 
-      {/* Member grid */}
-      {displayed.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayed.map((member, i) => (
-            <MemberCard key={member.id} member={member} index={i} />
-          ))}
+      {/* Table */}
+      {sorted.length > 0 ? (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-bg-surface2 border-b border-border">
+              <tr>
+                {HEADERS.map((col, i) => (
+                  <th key={i} className="px-4 py-2.5">
+                    {col.key ? (
+                      <button
+                        onClick={() => col.key && handleSort(col.key)}
+                        className="flex items-center text-[11px] font-mono text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                      >
+                        {col.label}
+                        <SortIcon active={sortCol === col.key} dir={sortDir} />
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+                        {col.label}
+                      </span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-bg-surface divide-y divide-border">
+              {sorted.map((member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  expanded={expandedId === member.id}
+                  onToggle={() =>
+                    setExpandedId(expandedId === member.id ? null : member.id)
+                  }
+                  effectiveStatus={getEffectiveStatus(
+                    member.id,
+                    member.dataSources.leaveStatus
+                  )}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground text-sm">

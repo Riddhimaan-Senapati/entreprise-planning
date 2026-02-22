@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 import { triggerGmailScan, triggerSlackSync } from '@/lib/api-client';
 import type { TimeOffSyncResult, MemberOOOChange } from '@/lib/types';
+import { useAppStore } from '@/store';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -63,6 +64,8 @@ function OOOChangeRow({ change }: { change: MemberOOOChange }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { setSlackLastSynced, setGmailLastSynced } = useAppStore();
+
   // ── ICS upload state ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -157,6 +160,7 @@ export default function SettingsPage() {
           duration: 6000,
         });
       }
+      setSlackLastSynced(new Date());
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setSlackError(msg);
@@ -204,6 +208,7 @@ export default function SettingsPage() {
           duration: 6000,
         });
       }
+      setGmailLastSynced(new Date());
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setGmailError(msg);

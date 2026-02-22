@@ -43,6 +43,12 @@ interface AppStore {
   // Incrementing this tells both TaskList and SuggestionPanel to refetch tasks
   tasksVersion: number;
   bumpTasksVersion: () => void;
+
+  // Last-synced timestamps for sidebar indicators
+  slackLastSynced: Date | null;
+  setSlackLastSynced: (date: Date) => void;
+  gmailLastSynced: Date | null;
+  setGmailLastSynced: (date: Date) => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -94,4 +100,9 @@ export const useAppStore = create<AppStore>((set) => ({
 
   tasksVersion: 0,
   bumpTasksVersion: () => set((state) => ({ tasksVersion: state.tasksVersion + 1 })),
+
+  slackLastSynced: null,
+  setSlackLastSynced: (date) => set({ slackLastSynced: date }),
+  gmailLastSynced: null,
+  setGmailLastSynced: (date) => set({ gmailLastSynced: date }),
 }));

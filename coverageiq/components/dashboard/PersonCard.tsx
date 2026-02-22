@@ -73,7 +73,6 @@ export default function PersonCard({ member, index }: PersonCardProps) {
 
   const dataSourceCount = [
     member.dataSources.calendarPct > 0,
-    member.dataSources.taskLoadHours > 0,
     !effectiveIsOOO,
   ].filter(Boolean).length;
 
@@ -130,7 +129,6 @@ export default function PersonCard({ member, index }: PersonCardProps) {
               {/* Data source dots */}
               <div className="flex items-center gap-1">
                 <DataSourceDot active={member.dataSources.calendarPct > 0} />
-                <DataSourceDot active={member.dataSources.taskLoadHours > 0} />
                 <DataSourceDot active={!effectiveIsOOO} />
               </div>
             </div>
@@ -169,20 +167,6 @@ export default function PersonCard({ member, index }: PersonCardProps) {
               <span
                 className={cn(
                   'w-2 h-2 rounded-full flex-shrink-0',
-                  member.dataSources.taskLoadHours < 20
-                    ? 'bg-status-green'
-                    : member.dataSources.taskLoadHours < 35
-                    ? 'bg-status-yellow'
-                    : 'bg-status-red'
-                )}
-              />
-              <span className="text-muted-foreground">Task load</span>
-              <span className="ml-auto font-mono">{member.dataSources.taskLoadHours}h</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span
-                className={cn(
-                  'w-2 h-2 rounded-full flex-shrink-0',
                   effectiveStatus === 'available' ? 'bg-status-green' : 'bg-status-red'
                 )}
               />
@@ -191,7 +175,7 @@ export default function PersonCard({ member, index }: PersonCardProps) {
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border">
-            {dataSourceCount}/3 sources synced
+            {dataSourceCount}/2 sources synced
           </p>
         </TooltipContent>
       </Tooltip>

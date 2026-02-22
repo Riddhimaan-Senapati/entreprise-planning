@@ -307,8 +307,8 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                 isSelected
                   ? 'border-l-2 border-l-status-green border-y-border border-r-border bg-bg-surface2'
                   : 'border-border',
-                isScheduled && 'opacity-50',
-                status === 'covered' && 'opacity-60',
+                isScheduled && 'opacity-60',
+                status === 'covered' && 'bg-bg-surface2 border-border/50',
                 deletingId === task.id && 'opacity-40 pointer-events-none'
               )}
             >
@@ -327,7 +327,7 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                   <p
                     className={cn(
                       'text-base font-heading font-semibold leading-tight pr-6',
-                      status === 'covered' && 'line-through opacity-60'
+                      status === 'covered' && 'line-through text-muted-foreground'
                     )}
                   >
                     {task.title}
@@ -352,7 +352,7 @@ export default function TaskList({ initialTaskId }: TaskListProps) {
                         <div className="w-5 h-5 rounded-full bg-bg-surface2 border border-border flex items-center justify-center text-[9px] font-bold opacity-60">
                           {getInitials(assignee.name)}
                         </div>
-                        <span className="text-xs text-muted-foreground line-through opacity-65">
+                        <span className="text-xs text-muted-foreground line-through">
                           {assignee.name.split(' ')[0]}
                         </span>
                       </div>

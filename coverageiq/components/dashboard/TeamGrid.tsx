@@ -11,7 +11,6 @@ const FILTER_OPTIONS = [
   { key: 'all', label: 'All Teams' },
   { key: 'risks', label: 'Risks Only' },
   { key: 'availability', label: 'By Availability' },
-  { key: 'task_load', label: 'By Task Load' },
   { key: 'calendar', label: 'By Calendar' },
   { key: 'leave', label: 'On Leave' },
 ] as const;
@@ -55,12 +54,6 @@ export default function TeamGrid() {
     if (filter === 'availability') {
       list = list.sort(
         (a, b) => effectiveSortScore(b) - effectiveSortScore(a)
-      );
-    }
-
-    if (filter === 'task_load') {
-      list = list.sort(
-        (a, b) => b.dataSources.taskLoadHours - a.dataSources.taskLoadHours
       );
     }
 
