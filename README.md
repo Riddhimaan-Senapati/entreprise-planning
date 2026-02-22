@@ -1,7 +1,31 @@
-# CoverageIQ — Enterprise Planning
+# Vantage
 
-AI-powered team coverage intelligence. See who's out, which tasks are at risk,
-and get Gemini-ranked reassignment suggestions — all in one dashboard.
+**AI-powered team coverage intelligence for enterprise project managers.**
+
+Vantage gives you a real-time view of who's out, which tasks are at risk, and who should take them over — surfaced automatically from Slack, Gmail, and calendar data, ranked by Google Gemini.
+
+---
+
+## Features
+
+- **Live availability tracking** — syncs out-of-office status from Slack messages, Gmail OOO replies, and `.ics` calendar files
+- **At-risk task detection** — automatically flags tasks assigned to unavailable team members
+- **AI reassignment suggestions** — Gemini ranks candidates by skill match, workload, and context
+- **Manual overrides** — managers can override any status; overrides always take priority
+- **Auth** — Clerk-based login with a single hardcoded admin account
+
+---
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, React 19, Tailwind CSS 4, shadcn/ui, Zustand |
+| Backend | FastAPI, SQLModel, SQLite / PostgreSQL |
+| AI | Google Gemini (pydantic-ai) |
+| Auth | Clerk |
+| Integrations | Slack SDK, Gmail API, iCalendar |
+| Deployment | DigitalOcean App Platform |
 
 ---
 
@@ -9,62 +33,68 @@ and get Gemini-ranked reassignment suggestions — all in one dashboard.
 
 ```
 entreprise-planning/
-├── backend/        # FastAPI + SQLite API server
-└── coverageiq/     # Next.js 15 frontend
+├── backend/        # FastAPI REST API
+└── coverageiq/     # Next.js frontend
 ```
 
 ---
 
-## Quick start
+## Getting started
 
-### 1. Backend
+### Backend
 
 ```bash
 cd backend
-
-# Create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Set up credentials
-cp .env.example .env
-# Edit .env — fill in SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, GEMINI_API_KEY
-
-# Start the server (auto-creates and seeds the database on first run)
+cp .env.example .env           # fill in SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, GEMINI_API_KEY
 python -m uvicorn main:app --reload --port 8000
 ```
 
-API + interactive docs → **http://localhost:8000/docs**
+Swagger UI → `http://localhost:8000/docs`
 
-### 2. Frontend
+### Frontend
 
 ```bash
 cd coverageiq
-
 npm install
 npm run dev
 ```
 
-App → **http://localhost:3000**
+App → `http://localhost:3000`
 
 ---
 
-## Required credentials
+## Environment variables
 
-| Variable | Where to get it |
+### Backend (`backend/.env`)
+
+| Variable | Description |
 |---|---|
-| `SLACK_BOT_TOKEN` | Slack app → OAuth & Permissions → Bot token (`xoxb-…`) |
-| `SLACK_CHANNEL_ID` | Right-click channel in Slack → View channel details → bottom of About |
-| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (free) |
+| `SLACK_BOT_TOKEN` | Slack app bot token (`xoxb-…`) |
+| `SLACK_CHANNEL_ID` | Channel ID to scan for OOO messages |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) — free tier works |
+| `DATABASE_URL` | PostgreSQL URL for production (SQLite used locally) |
 
-See `backend/.env.example` for the full list including optional variables.
+### Frontend (`coverageiq/.env.local`)
+
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
+| `CLERK_SECRET_KEY` | Clerk secret key |
+| `NEXT_PUBLIC_API_URL` | Backend base URL (default: `http://localhost:8000`) |
+
+See `credentials.js` in the frontend for the hardcoded admin account. Create that user in your [Clerk dashboard](https://dashboard.clerk.com) before first login.
 
 ---
 
-## Further reading
+## Auth flow
 
-- [`backend/README.md`](backend/README.md) — API reference, database, offline tools
-- [`coverageiq/README.md`](coverageiq/README.md) — Frontend pages, data flow, project structure
+Unauthenticated visits are redirected to `/sign-in`. On successful login, the Vantage loading screen plays before the dashboard appears.
+
+---
+
+## License
+
+MIT
