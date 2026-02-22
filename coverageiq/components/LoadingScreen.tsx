@@ -44,7 +44,7 @@ export default function LoadingScreen() {
 
       <div className="relative">
         <img
-          src="/logo_main.PNG"
+          src="/logo_main.png"
           alt="Vantage"
           style={{
             width: '480px',
