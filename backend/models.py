@@ -43,6 +43,10 @@ class TeamMember(SQLModel, table=True):
     ics_path:            Optional[str]  = None
     last_synced:         datetime       = Field(default_factory=datetime.utcnow)
     manager_notes:       str            = ""
+    # Slack-sourced OOO schedule — set by POST /timeoff/sync, never by manual override.
+    # Future OOO: start is stored but leave_status stays 'available' until tick activates it.
+    slack_ooo_start:     Optional[datetime] = None   # when OOO begins (may be in the future)
+    slack_ooo_until:     Optional[datetime] = None   # when OOO ends; None = open-ended
 
 
 class WeekAvailability(SQLModel, table=True):
@@ -132,6 +136,8 @@ class TeamMemberOut(BaseModel):
     icsLinked:          bool = False   # true when an ICS file is attached
     manuallyOverridden: bool = False   # true when leave status was manually set
     managerNotes:       str  = ""
+    slackOooStart:      Optional[datetime] = None   # Slack-detected OOO start
+    slackOooUntil:      Optional[datetime] = None   # Slack-detected OOO end
 
 
 class SummaryOut(BaseModel):
@@ -168,3 +174,26 @@ class TaskCreate(BaseModel):
 
 class ReassignUpdate(BaseModel):
     memberId: str  # the new assignee's member ID
+
+
+# ── Slack time-off sync schemas ────────────────────────────────────────────────
+
+class MemberOOOChange(BaseModel):
+    """One member whose OOO status was updated by the Slack sync."""
+    memberId:       str
+    memberName:     str
+    personUsername: str            # Slack name that was matched
+    startDate:      Optional[str] = None
+    endDate:        Optional[str] = None
+    reason:         Optional[str] = None
+    coverageBy:     Optional[str] = None
+    pending:        bool = False   # True when start_date is still in the future
+
+
+class TimeOffSyncResult(BaseModel):
+    """Result returned by POST /timeoff/sync."""
+    detected: int                  # Slack messages classified as time-off
+    applied:  int                  # matched to a known team member
+    pending:  int                  # applied but start_date is in the future
+    skipped:  int                  # detected but couldn't be matched or already passed
+    changes:  list[MemberOOOChange]

@@ -37,12 +37,13 @@ from sqlmodel import Session
 
 from database import create_db_and_tables, engine, get_session
 from models import SummaryOut
-from crud import get_summary
+from crud import apply_timeoff_entries, get_summary, tick_slack_ooo_status
 from routers.members import router as members_router
 from routers.tasks import router as tasks_router
 from routers.calendar import router as calendar_router
 from seed import seed
 from slack_parser import TimeOffEntry, fetch_and_parse
+from models import TimeOffSyncResult
 
 load_dotenv()
 
@@ -77,6 +78,7 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     with Session(engine) as db:
         seed(db)  # no-op if already seeded
+        tick_slack_ooo_status(db)  # activate pending + restore expired OOOs on startup
     yield
 
 
@@ -143,6 +145,42 @@ def get_timeoff(
         raise HTTPException(status_code=500, detail=str(e))
 
     return entries
+
+
+@app.post(
+    "/timeoff/sync",
+    response_model=TimeOffSyncResult,
+    summary="Sync Slack time-off announcements to member leave statuses",
+    description=(
+        "Fetches recent Slack messages, runs them through Gemini AI to extract "
+        "time-off announcements, fuzzy-matches each person to a team member, and "
+        "updates their leave_status in the database. "
+        "Future OOOs (start_date > today) are stored and activate automatically when "
+        "GET /members is called after the start date arrives. "
+        "Returns a summary of what was detected, applied, and skipped."
+    ),
+)
+def post_timeoff_sync(
+    hours: int = Query(default=24, ge=1, le=720, description="How many hours of Slack history to scan"),
+    limit: int = Query(default=100, ge=1, le=999, description="Max messages to fetch from Slack"),
+    db: Session = Depends(get_session),
+):
+    # Tick first: activate any pending OOOs that have started, restore expired ones
+    tick_slack_ooo_status(db)
+
+    try:
+        entries = fetch_and_parse(
+            slack=slack_client,
+            channel_id=SLACK_CHANNEL_ID,
+            hours_back=hours,
+            limit=limit,
+        )
+    except SlackApiError as e:
+        raise HTTPException(status_code=502, detail=f"Slack error: {e.response['error']}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return apply_timeoff_entries(db, entries)
 
 
 # ── Availability ping ───────────────────────────────────────────────────────────

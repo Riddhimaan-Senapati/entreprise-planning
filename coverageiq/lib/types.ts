@@ -48,4 +48,39 @@ export interface TeamMember {
   weekAvailability: WeekAvailability;
   manuallyOverridden?: boolean;  // true when leave status was manually set via override
   managerNotes?: string;
+  slackOooStart?: Date | null;   // Slack-sourced OOO start (may be future)
+  slackOooUntil?: Date | null;   // Slack-sourced OOO end
+}
+
+// ── Slack time-off sync ────────────────────────────────────────────────────────
+
+export interface MemberOOOChange {
+  memberId:       string;
+  memberName:     string;
+  personUsername: string;
+  startDate:      string | null;
+  endDate:        string | null;
+  reason:         string | null;
+  coverageBy:     string | null;
+  pending:        boolean;  // true when start_date is still in the future
+}
+
+export interface TimeOffSyncResult {
+  detected: number;  // Slack messages classified as time-off
+  applied:  number;  // matched to a known team member
+  pending:  number;  // applied but start_date is in the future
+  skipped:  number;  // detected but couldn't match or already passed
+  changes:  MemberOOOChange[];
+}
+
+export interface TimeOffEntry {
+  sentAt:           string;
+  sender:           string;
+  message:          string;
+  personUsername:   string;
+  startDate:        string | null;
+  endDate:          string | null;
+  reason:           string | null;
+  coverageUsername: string | null;
+  notes:            string | null;
 }

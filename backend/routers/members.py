@@ -22,6 +22,7 @@ from crud import (
     get_member_out,
     get_member_row,
     reset_member_override,
+    tick_slack_ooo_status,
     update_member_calendar_pct,
     update_member_notes,
     update_member_override,
@@ -39,6 +40,9 @@ _BACKEND_DIR = Path(__file__).parent.parent
 
 @router.get("", response_model=list[TeamMemberOut])
 def list_members(db: Session = Depends(get_session)):
+    # Activate any pending Slack OOOs whose start date has arrived and
+    # restore any that have expired — keeps the UI current without manual action.
+    tick_slack_ooo_status(db)
     return get_all_members(db)
 
 

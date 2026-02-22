@@ -6,3 +6,4 @@ uvicorn[standard]>=0.30.0
 sqlmodel>=0.0.22
 icalendar>=5.0.12
 recurring-ical-events>=3.3.0
+python-dateutil>=2.9.0

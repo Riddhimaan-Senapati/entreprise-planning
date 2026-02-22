@@ -6,7 +6,7 @@
  * Defaults to http://localhost:8000 when the variable is absent.
  */
 
-import type { TeamMember, Task } from './types';
+import type { TeamMember, Task, TimeOffSyncResult, TimeOffEntry } from './types';
 
 const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -39,6 +39,8 @@ function parseMember(raw: ApiTeamMember): TeamMember {
     ...raw,
     lastSynced: new Date(raw.lastSynced),
     currentTasks: raw.currentTasks.map(parseTask),
+    slackOooStart: raw.slackOooStart ? new Date(raw.slackOooStart) : null,
+    slackOooUntil: raw.slackOooUntil ? new Date(raw.slackOooUntil) : null,
   };
 }
 
@@ -52,10 +54,12 @@ function parseTask(raw: ApiTask): Task {
 // ── Wire types (dates as strings from JSON) ────────────────────────────────────
 
 type ApiTask = Omit<Task, 'deadline'> & { deadline: string };
-type ApiTeamMember = Omit<TeamMember, 'lastSynced' | 'currentTasks'> & {
+type ApiTeamMember = Omit<TeamMember, 'lastSynced' | 'currentTasks' | 'slackOooStart' | 'slackOooUntil'> & {
   lastSynced: string;
   currentTasks: ApiTask[];
   icsLinked?: boolean;
+  slackOooStart?: string | null;
+  slackOooUntil?: string | null;
 };
 
 // ── Summary ───────────────────────────────────────────────────────────────────
@@ -201,4 +205,22 @@ export function sendAvailabilityPing(body: PingPayload): Promise<PingResult> {
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+// ── Slack time-off sync ────────────────────────────────────────────────────────
+
+/**
+ * Trigger a full Slack sync: fetch messages, run through Gemini, apply OOO
+ * statuses to matched team members. Returns a summary of what changed.
+ */
+export function syncTimeOff(hours = 24): Promise<TimeOffSyncResult> {
+  return apiFetch<TimeOffSyncResult>(`/timeoff/sync?hours=${hours}`, { method: 'POST' });
+}
+
+/**
+ * Fetch raw time-off entries from Slack without writing to the DB.
+ * Useful for previewing what Gemini found before committing.
+ */
+export function fetchTimeOffEntries(hours = 24): Promise<TimeOffEntry[]> {
+  return apiFetch<TimeOffEntry[]>(`/timeoff?hours=${hours}`);
 }

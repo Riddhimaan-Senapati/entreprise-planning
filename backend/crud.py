@@ -8,19 +8,25 @@ All functions accept a SQLModel Session and return typed Pydantic objects
 
 from __future__ import annotations
 
+import difflib
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlmodel import Session, select
 
 import uuid
 
 from models import (
+    MemberOOOChange, TimeOffSyncResult,
     Suggestion, SuggestionOut,
     Task, TaskCreate, TaskOut,
     TeamMember, TeamMemberOut,
     WeekAvailability, WeekAvailabilityOut,
     DataSourceSignalOut, SummaryOut,
 )
+
+if TYPE_CHECKING:
+    from slack_parser import TimeOffEntry
 
 
 # ── Private builders ───────────────────────────────────────────────────────────
@@ -93,6 +99,8 @@ def _member_out(member: TeamMember, db: Session) -> TeamMemberOut:
         icsLinked=bool(member.ics_path),
         manuallyOverridden=member.manually_overridden,
         managerNotes=member.manager_notes,
+        slackOooStart=member.slack_ooo_start,
+        slackOooUntil=member.slack_ooo_until,
     )
 
 
@@ -251,10 +259,175 @@ def reset_member_override(
     member.leave_status = "available"
     member.is_ooo = False
     member.manually_overridden = False
+    # Also clear any Slack-sourced OOO schedule so tick doesn't re-activate it
+    member.slack_ooo_start = None
+    member.slack_ooo_until = None
     db.add(member)
     db.commit()
     db.refresh(member)
     return member
+
+
+# ── Slack OOO scheduling ───────────────────────────────────────────────────────
+
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    """
+    Make a datetime timezone-aware (UTC).  SQLite returns naive datetimes even
+    when they were stored as UTC, so we attach the UTC tzinfo before comparing.
+    """
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _parse_date_str(s: str | None) -> datetime | None:
+    """Parse a Gemini-extracted date string (e.g. '2/24/2026') to UTC datetime."""
+    if not s:
+        return None
+    try:
+        from dateutil import parser as dparser
+        dt = dparser.parse(s)
+        return _ensure_utc(dt)
+    except Exception:
+        return None
+
+
+def _best_member_match(username: str, all_members: list[TeamMember]) -> TeamMember | None:
+    """Fuzzy-match a Slack display name to a TeamMember (ratio >= 0.75)."""
+    norm = username.lstrip("@").replace(".", " ").strip().lower()
+    if not norm:
+        return None
+    best_ratio, best_member = 0.0, None
+    for m in all_members:
+        # Full name similarity
+        full = difflib.SequenceMatcher(None, norm, m.name.lower()).ratio()
+        # First name only similarity (catches "maya" → "Maya Patel")
+        first = difflib.SequenceMatcher(None, norm, m.name.split()[0].lower()).ratio()
+        ratio = max(full, first)
+        if ratio > best_ratio:
+            best_ratio, best_member = ratio, m
+    return best_member if best_ratio >= 0.75 else None
+
+
+def tick_slack_ooo_status(db: Session) -> tuple[list[str], list[str]]:
+    """
+    Activate pending Slack OOOs (start_date has arrived) and restore expired ones.
+    Runs on server startup and before every GET /members so the UI is always current.
+    Does not touch members with manually_overridden=True.
+
+    Returns (activated_ids, restored_ids).
+    """
+    now = datetime.now(timezone.utc)
+    activated: list[str] = []
+    restored:  list[str] = []
+    changed = False
+
+    for m in db.exec(select(TeamMember)).all():
+        if m.manually_overridden:
+            continue
+
+        # SQLite returns naive datetimes — normalise to UTC before comparing
+        ooo_until = _ensure_utc(m.slack_ooo_until)
+        ooo_start = _ensure_utc(m.slack_ooo_start)
+
+        # Restore: OOO window has ended
+        if ooo_until is not None and ooo_until <= now:
+            m.leave_status = "available"
+            m.is_ooo = False
+            m.confidence_score = _confidence_from_calendar(m.calendar_pct, "available")
+            m.slack_ooo_start = None
+            m.slack_ooo_until = None
+            db.add(m)
+            restored.append(m.id)
+            changed = True
+
+        # Activate: start has arrived but leave_status not yet set to OOO
+        elif ooo_start is not None and ooo_start <= now and m.leave_status != "ooo":
+            m.leave_status = "ooo"
+            m.is_ooo = True
+            m.confidence_score = 0.0
+            db.add(m)
+            activated.append(m.id)
+            changed = True
+
+    if changed:
+        db.commit()
+
+    return activated, restored
+
+
+def apply_timeoff_entries(
+    db: Session,
+    entries: list,  # list[TimeOffEntry] — avoid circular import at module level
+) -> TimeOffSyncResult:
+    """
+    Match each time-off entry to a team member by fuzzy name and persist their
+    OOO schedule.  Future OOOs are stored but not activated yet — tick_slack_ooo_status
+    will activate them when start_date arrives.
+    """
+    now = datetime.now(timezone.utc)
+    all_members = db.exec(select(TeamMember)).all()
+    changes: list[MemberOOOChange] = []
+    skipped = 0
+    processed_ids: set[str] = set()  # deduplicate per member per sync run
+
+    for entry in entries:
+        start_dt = _parse_date_str(entry.start_date) or now
+        end_dt   = _parse_date_str(entry.end_date)
+
+        # Skip stale entries (entire OOO window has already passed)
+        if end_dt is not None and end_dt <= now:
+            skipped += 1
+            continue
+
+        member = _best_member_match(entry.person_username, all_members)
+        if not member:
+            skipped += 1
+            continue
+
+        # Don't overwrite manually-set overrides
+        if member.manually_overridden:
+            skipped += 1
+            continue
+
+        # Deduplicate: first match in the batch wins
+        if member.id in processed_ids:
+            skipped += 1
+            continue
+        processed_ids.add(member.id)
+
+        member.slack_ooo_start = start_dt
+        member.slack_ooo_until = end_dt
+        member.manually_overridden = False
+
+        is_pending = start_dt > now
+        if not is_pending:
+            member.leave_status = "ooo"
+            member.is_ooo = True
+            member.confidence_score = 0.0
+
+        db.add(member)
+        changes.append(MemberOOOChange(
+            memberId=member.id,
+            memberName=member.name,
+            personUsername=entry.person_username,
+            startDate=entry.start_date,
+            endDate=entry.end_date,
+            reason=entry.reason,
+            coverageBy=entry.coverage_username,
+            pending=is_pending,
+        ))
+
+    if changes:
+        db.commit()
+
+    return TimeOffSyncResult(
+        detected=len(entries),
+        applied=len(changes),
+        pending=sum(1 for c in changes if c.pending),
+        skipped=skipped,
+        changes=changes,
+    )
 
 
 # ── Tasks ──────────────────────────────────────────────────────────────────────
