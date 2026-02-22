@@ -4,8 +4,9 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Upload, CheckCircle, AlertTriangle, X, FileText,
-  Mail, Loader2, UserX, Clock, CheckCircle2, MessageSquare,
+  Mail, Loader2, UserX, Clock, CheckCircle2, MessageSquare, LogOut,
 } from 'lucide-react';
+import { useClerk } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
 import { triggerGmailScan, triggerSlackSync } from '@/lib/api-client';
 import type { TimeOffSyncResult, MemberOOOChange } from '@/lib/types';
@@ -65,6 +66,7 @@ function OOOChangeRow({ change }: { change: MemberOOOChange }) {
 
 export default function SettingsPage() {
   const { setSlackLastSynced, setGmailLastSynced } = useAppStore();
+  const { signOut } = useClerk();
 
   // ── ICS upload state ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -475,6 +477,23 @@ export default function SettingsPage() {
             </ul>
           </div>
         )}
+      </section>
+
+      {/* ── Account ───────────────────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Account</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sign out of your Vantage workspace on this device.
+          </p>
+        </div>
+        <button
+          onClick={() => signOut({ redirectUrl: '/sign-in' })}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-bg-surface2 border border-border text-muted-foreground hover:text-status-red hover:border-status-red/40 hover:bg-status-red/5"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
       </section>
     </div>
   );

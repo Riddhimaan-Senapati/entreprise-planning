@@ -9,8 +9,8 @@ export default function LoadingScreen() {
   useEffect(() => {
     // Logo animates in at ~0.1s, text at ~0.4s — give everything time to fully
     // appear before starting the exit slide (1 400ms feels snappy but readable).
-    const exitTimer = setTimeout(() => setExiting(true), 400);
-    const doneTimer = setTimeout(() => setDone(true), 1200);
+    const exitTimer = setTimeout(() => setExiting(true), 800);
+    const doneTimer = setTimeout(() => setDone(true), 1600);
 
     return () => {
       clearTimeout(exitTimer);
