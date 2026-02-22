@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, CalendarOff, Pencil, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight } from 'lucide-react';
+import { Search, CalendarOff, Pencil, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useTeamMembers } from '@/hooks/use-api';
 import { TeamMember } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { updateMemberNotes, updateMemberSkills } from '@/lib/api-client';
+import { updateMemberNotes, updateMemberSkills, deleteOverride } from '@/lib/api-client';
 import { useAppStore } from '@/store';
+import { toast } from 'sonner';
 
 // ── Notes field with debounced auto-save ──────────────────────────────────────
 
@@ -219,14 +220,17 @@ function MemberRow({
   expanded,
   onToggle,
   effectiveStatus,
+  onClearOoo,
 }: {
   member: TeamMember;
   expanded: boolean;
   onToggle: () => void;
   effectiveStatus: string;
+  onClearOoo: () => Promise<void>;
 }) {
   const isOOO = effectiveStatus === 'ooo';
   const hasOverride = member.manuallyOverridden === true;
+  const [clearing, setClearing] = useState(false);
   const initials = member.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
   const calPct = member.dataSources.calendarPct;
 
@@ -301,16 +305,38 @@ function MemberRow({
 
         {/* Status badge */}
         <td className="px-4 py-3">
-          <span
-            className={cn(
-              'text-xs font-mono px-1.5 py-0.5 rounded border',
-              isOOO
-                ? 'bg-status-red/10 text-status-red border-status-red/30'
-                : 'bg-status-green/10 text-status-green border-status-green/30'
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'text-xs font-mono px-1.5 py-0.5 rounded border',
+                isOOO
+                  ? 'bg-status-red/10 text-status-red border-status-red/30'
+                  : 'bg-status-green/10 text-status-green border-status-green/30'
+              )}
+            >
+              {isOOO ? 'OOO' : 'Available'}
+            </span>
+            {isOOO && (
+              <button
+                title="Override to Available & clear all OOO flags"
+                disabled={clearing}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setClearing(true);
+                  try {
+                    await onClearOoo();
+                  } finally {
+                    setClearing(false);
+                  }
+                }}
+                className="text-muted-foreground/50 hover:text-status-green transition-colors disabled:opacity-40"
+              >
+                {clearing
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Pencil className="w-3 h-3" />}
+              </button>
             )}
-          >
-            {isOOO ? 'OOO' : 'Available'}
-          </span>
+          </div>
         </td>
 
         {/* Skills (compact) */}
@@ -381,7 +407,7 @@ const HEADERS: HeaderCol[] = [
 ];
 
 export default function TeamPage() {
-  const { data: members, loading } = useTeamMembers();
+  const { data: members, loading, refetch } = useTeamMembers();
   const { overrides } = useAppStore();
   const [teamFilter, setTeamFilter] = useState<TabKey>('All');
   const [availFilter, setAvailFilter] = useState<AvailKey>('All');
@@ -448,6 +474,14 @@ export default function TeamPage() {
       ? (valA as number) - (valB as number)
       : (valB as number) - (valA as number);
   });
+
+  async function handleClearOoo(memberId: string, memberName: string) {
+    await deleteOverride(memberId);
+    refetch();
+    toast.success(`${memberName} marked as Available`, {
+      description: 'All OOO flags have been cleared.',
+    });
+  }
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -584,6 +618,7 @@ export default function TeamPage() {
                     member.id,
                     member.dataSources.leaveStatus
                   )}
+                  onClearOoo={() => handleClearOoo(member.id, member.name)}
                 />
               ))}
             </tbody>
