@@ -4,10 +4,10 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Upload, CheckCircle, AlertTriangle, X, FileText,
-  Mail, Loader2, UserX, Clock, CheckCircle2,
+  Mail, Loader2, UserX, Clock, CheckCircle2, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { triggerGmailScan } from '@/lib/api-client';
+import { triggerGmailScan, triggerSlackSync } from '@/lib/api-client';
 import type { TimeOffSyncResult, MemberOOOChange } from '@/lib/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -117,6 +117,52 @@ export default function SettingsPage() {
       });
     } finally {
       setUploading(false);
+    }
+  }
+
+  // ── Slack sync state ────────────────────────────────────────────────────────
+  const [slackSyncing, setSlackSyncing] = useState(false);
+  const [slackResults, setSlackResults] = useState<TimeOffSyncResult | null>(null);
+  const [slackError, setSlackError] = useState<string | null>(null);
+
+  async function handleSlackSync() {
+    setSlackSyncing(true);
+    setSlackResults(null);
+    setSlackError(null);
+
+    try {
+      const result = await triggerSlackSync(24);
+      setSlackResults(result);
+
+      if (result.applied === 0) {
+        toast.success('Slack sync complete', {
+          description: `Checked ${result.detected} message(s) — no new OOO signals found.`,
+        });
+      } else {
+        result.changes.forEach((change) => {
+          const dates = change.startDate
+            ? `${change.startDate}${change.endDate ? ` → ${change.endDate}` : ''}`
+            : 'dates unknown';
+          toast(
+            change.pending ? `${change.memberName} will be OOO` : `${change.memberName} is OOO`,
+            {
+              description: `${dates}${change.reason ? ` · ${change.reason}` : ''}`,
+              icon: change.pending ? '🕐' : '🚫',
+              duration: 10000,
+            },
+          );
+        });
+        toast.success('Slack sync complete', {
+          description: `${result.applied} member(s) updated · ${result.pending} pending · ${result.skipped} skipped`,
+          duration: 6000,
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSlackError(msg);
+      toast.error('Slack sync failed', { description: msg });
+    } finally {
+      setSlackSyncing(false);
     }
   }
 
@@ -235,6 +281,72 @@ export default function SettingsPage() {
             ) : (
               <ul className="divide-y divide-border">
                 {gmailResults.changes.map((change) => (
+                  <OOOChangeRow key={change.memberId} change={change} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ── Slack OOO Sync ────────────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Slack OOO Sync</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Scans the last 24 hours of your Slack time-off channel using Gemini AI.
+            Detected members are updated immediately; future OOOs are held as pending
+            and activate automatically on their start date.
+          </p>
+        </div>
+
+        <button
+          onClick={handleSlackSync}
+          disabled={slackSyncing}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            slackSyncing
+              ? 'bg-bg-surface2 text-muted-foreground cursor-not-allowed'
+              : 'bg-[#4A154B] text-white hover:opacity-90',
+          )}
+        >
+          {slackSyncing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <MessageSquare className="w-4 h-4" />
+          )}
+          {slackSyncing ? 'Syncing Slack…' : 'Sync Slack for OOO'}
+        </button>
+
+        {slackError && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-status-red/10 border border-status-red/30 text-status-red text-sm">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{slackError}</span>
+          </div>
+        )}
+
+        {slackResults && (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-4 py-2.5 bg-bg-surface border-b border-border flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-foreground">Sync Results</span>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                <span>{slackResults.detected} detected</span>
+                <span className="text-status-green">{slackResults.applied} applied</span>
+                {slackResults.pending > 0 && (
+                  <span className="text-status-amber">{slackResults.pending} pending</span>
+                )}
+                <span>{slackResults.skipped} skipped</span>
+              </div>
+            </div>
+
+            {slackResults.changes.length === 0 ? (
+              <div className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
+                <CheckCircle2 className="w-4 h-4 text-status-green flex-shrink-0" />
+                No OOO signals matched to team members.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {slackResults.changes.map((change) => (
                   <OOOChangeRow key={change.memberId} change={change} />
                 ))}
               </ul>

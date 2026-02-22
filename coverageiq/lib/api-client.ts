@@ -187,6 +187,22 @@ export function fetchSummary(): Promise<Summary> {
   return apiFetch<Summary>('/summary');
 }
 
+// ── Slack time-off sync ────────────────────────────────────────────────────────
+
+/**
+ * Triggers a Slack channel scan for time-off announcements.
+ * Fetches recent Slack messages, runs them through Gemini AI, fuzzy-matches
+ * each person to a team member, and updates their leave_status in the DB.
+ *
+ * @param hours How many hours of Slack history to scan (default 24).
+ * @returns TimeOffSyncResult with counts and the list of detected OOO members.
+ */
+export function triggerSlackSync(hours = 24): Promise<TimeOffSyncResult> {
+  return apiFetch<TimeOffSyncResult>(`/timeoff/sync?hours=${hours}`, {
+    method: 'POST',
+  });
+}
+
 // ── Gmail OOO scanning ────────────────────────────────────────────────────────
 
 /**
