@@ -43,6 +43,7 @@ class TeamMember(SQLModel, table=True):
     ics_path:            Optional[str]  = None
     last_synced:         datetime       = Field(default_factory=datetime.utcnow)
     manager_notes:       str            = ""
+    slack_user_id:       Optional[str]  = None   # Slack user ID (e.g. U08ABC123) for exact matching
     # Slack-sourced OOO schedule — set by POST /timeoff/sync, never by manual override.
     # Future OOO: start is stored but leave_status stays 'available' until tick activates it.
     slack_ooo_start:     Optional[datetime] = None   # when OOO begins (may be in the future)

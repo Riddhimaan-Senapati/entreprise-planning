@@ -9,6 +9,7 @@ All functions accept a SQLModel Session and return typed Pydantic objects
 from __future__ import annotations
 
 import difflib
+import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -309,6 +310,22 @@ def _best_member_match(username: str, all_members: list[TeamMember]) -> TeamMemb
     return best_member if best_ratio >= 0.75 else None
 
 
+_SLACK_ID_RE = re.compile(r"^[UW][A-Z0-9]{6,}$")
+
+
+def _is_slack_user_id(s: str) -> bool:
+    """Return True if s looks like a Slack user/workspace ID (e.g. U08ABC123)."""
+    return bool(_SLACK_ID_RE.match(s))
+
+
+def _member_by_slack_id(slack_id: str, all_members: list[TeamMember]) -> TeamMember | None:
+    """Exact match on TeamMember.slack_user_id."""
+    for m in all_members:
+        if m.slack_user_id == slack_id:
+            return m
+    return None
+
+
 def tick_slack_ooo_status(db: Session) -> tuple[list[str], list[str]]:
     """
     Activate pending Slack OOOs (start_date has arrived) and restore expired ones.
@@ -361,9 +378,11 @@ def apply_timeoff_entries(
     entries: list,  # list[TimeOffEntry] — avoid circular import at module level
 ) -> TimeOffSyncResult:
     """
-    Match each time-off entry to a team member by fuzzy name and persist their
-    OOO schedule.  Future OOOs are stored but not activated yet — tick_slack_ooo_status
-    will activate them when start_date arrives.
+    Match each time-off entry to a team member and persist their OOO schedule.
+    Matching priority: exact Slack user ID (when person_username looks like U/W + alphanumeric)
+    → fuzzy display name (SequenceMatcher ratio >= 0.75).
+    Future OOOs are stored but not activated yet — tick_slack_ooo_status will activate them
+    when start_date arrives.
     """
     now = datetime.now(timezone.utc)
     all_members = db.exec(select(TeamMember)).all()
@@ -380,7 +399,13 @@ def apply_timeoff_entries(
             skipped += 1
             continue
 
-        member = _best_member_match(entry.person_username, all_members)
+        # Match by exact Slack user ID first; fall back to fuzzy name
+        person_id = entry.person_username
+        if _is_slack_user_id(person_id):
+            member = _member_by_slack_id(person_id, all_members)
+        else:
+            member = _best_member_match(person_id, all_members)
+
         if not member:
             skipped += 1
             continue
@@ -407,6 +432,13 @@ def apply_timeoff_entries(
             member.confidence_score = 0.0
 
         db.add(member)
+
+        # Resolve coverage display name from DB when it's a Slack user ID
+        coverage_display = entry.coverage_username
+        if coverage_display and _is_slack_user_id(coverage_display):
+            coverage_member = _member_by_slack_id(coverage_display, all_members)
+            coverage_display = coverage_member.name if coverage_member else coverage_display
+
         changes.append(MemberOOOChange(
             memberId=member.id,
             memberName=member.name,
@@ -414,7 +446,7 @@ def apply_timeoff_entries(
             startDate=entry.start_date,
             endDate=entry.end_date,
             reason=entry.reason,
-            coverageBy=entry.coverage_username,
+            coverageBy=coverage_display,
             pending=is_pending,
         ))
 

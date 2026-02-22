@@ -71,18 +71,25 @@ agent = Agent(
     output_type=TimeOffDetails,
     system_prompt=(
         "You are an HR assistant that reads Slack messages and extracts time-off information. "
-        "You will be given the message text, the Slack username of the sender, and the exact "
-        "date and time the message was sent. "
+        "You will be given the raw Slack message text (which may contain <@USERID> mention tokens), "
+        "the Slack user ID of the sender, and the exact date and time the message was sent. "
         "Use the message sent date to resolve any partial or relative dates to full dates "
         "including the correct year (e.g. '2/21' sent in 2026 → '2/21/2026', "
         "'next Monday' sent on 2026-02-21 → '2/23/2026'). "
         "Determine if the message is a time-off request or announcement. "
-        "If it is, extract: who is taking time off (use the sender's username unless the message "
-        "clearly states someone else), the full start and end dates (with year), the reason if "
-        "mentioned, and who will cover their work. "
-        "For coverage: if the person was @mentioned, use their resolved display name; "
-        "if they were named in plain text, use that name as written. "
-        "Only set coverage_username to null if no coverage person is mentioned at all. "
+        "If it is, extract: who is taking time off, the full start and end dates (with year), "
+        "the reason if mentioned, and who will cover their work. "
+        "IMPORTANT — person_username rules: "
+        "  • If the person taking time off is @mentioned with a <@USERID> token, return just the "
+        "    raw user ID (the string between <@ and >, e.g. U08ABC123) as person_username. "
+        "  • If the message is written in first person (e.g. 'I will be OOO') and no other person "
+        "    is identified by a <@USERID> token, return the sender's user ID as person_username. "
+        "  • Only use a plain text name if the person is identified by name with no <@USERID> mention. "
+        "IMPORTANT — coverage_username rules: "
+        "  • If a coverage person is @mentioned with a <@USERID> token, return just the raw user ID "
+        "    (e.g. U08ABC123) as coverage_username. "
+        "  • If they are named in plain text, use that name as written. "
+        "  • Set coverage_username to null only if no coverage person is mentioned at all. "
         "If the message is not about time off (e.g. general chat, a question, a system event), "
         "set is_time_off_request to false and leave all other fields null."
     ),
@@ -139,12 +146,12 @@ def _retry_delay_from_error(exc: ModelHTTPError) -> int:
 
 
 # ── Core parsing ───────────────────────────────────────────────────────────────
-def parse_message(resolved_text: str, sender_name: str, sent_at: datetime) -> TimeOffDetails:
+def parse_message(raw_text: str, sender_id: str, sent_at: datetime) -> TimeOffDetails:
     """Run a single message through Gemini, retrying on 429."""
     prompt = (
-        f"Sender Slack username : @{sender_name}\n"
+        f"Sender Slack user ID  : {sender_id}\n"
         f"Message sent at       : {format_datetime(sent_at)} (year: {sent_at.year})\n\n"
-        f"Message:\n{resolved_text}"
+        f"Message:\n{raw_text}"
     )
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -195,14 +202,15 @@ def fetch_and_parse(
             continue
 
         sent_at = ts_to_datetime(msg["ts"])
-        sender_id = msg.get("user", "")
-        sender_name = resolve_user(slack, sender_id) if sender_id else "unknown"
-        resolved_text = resolve_mentions(raw_text, slack)
+        sender_id = msg.get("user", "") or "unknown"
+        # Resolve sender display name only for the TimeOffEntry.sender field (one call, cached)
+        sender_name = resolve_user(slack, sender_id) if sender_id != "unknown" else "unknown"
 
-        details = parse_message(resolved_text, sender_name, sent_at)
+        # Pass raw text with <@USERID> tokens intact — Gemini handles them via system prompt
+        details = parse_message(raw_text, sender_id, sent_at)
 
         if details.is_time_off_request:
-            person = (details.person_username or sender_name).lstrip("@")
+            person = (details.person_username or sender_id).lstrip("@")
             coverage = details.coverage_username.lstrip("@") if details.coverage_username else None
             entries.append(TimeOffEntry(
                 sent_at=sent_at.isoformat(),
