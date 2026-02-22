@@ -257,27 +257,54 @@ function MemberCard({ member, index }: { member: TeamMember; index: number }) {
 const TEAM_TABS = ['All', 'Engineering', 'Design', 'Product'] as const;
 type TabKey = (typeof TEAM_TABS)[number];
 
+const AVAIL_TABS = ['All', 'Available', 'OOO'] as const;
+type AvailKey = (typeof AVAIL_TABS)[number];
+
+const AVAIL_ACTIVE: Record<AvailKey, string> = {
+  All:       'bg-status-green/10 text-status-green border-status-green/30',
+  Available: 'bg-status-green/10 text-status-green border-status-green/30',
+  OOO:       'bg-status-red/10 text-status-red border-status-red/30',
+};
+
 export default function TeamPage() {
   const { data: members } = useTeamMembers();
+  const { overrides } = useAppStore();
   const [teamFilter, setTeamFilter] = useState<TabKey>('All');
+  const [availFilter, setAvailFilter] = useState<AvailKey>('All');
   const [search, setSearch] = useState('');
 
   const all = members ?? [];
+
+  // Compute effective status respecting Zustand overrides (same logic as MemberCard)
+  function effectiveStatus(memberId: string, dbStatus: string) {
+    return overrides.find((o) => o.memberId === memberId)?.status ?? dbStatus;
+  }
 
   const counts = TEAM_TABS.reduce<Record<TabKey, number>>((acc, t) => {
     acc[t] = t === 'All' ? all.length : all.filter((m) => m.team === t).length;
     return acc;
   }, { All: 0, Engineering: 0, Design: 0, Product: 0 });
 
+  const availCounts: Record<AvailKey, number> = {
+    All:       all.length,
+    Available: all.filter((m) => effectiveStatus(m.id, m.dataSources.leaveStatus) === 'available').length,
+    OOO:       all.filter((m) => effectiveStatus(m.id, m.dataSources.leaveStatus) === 'ooo').length,
+  };
+
   const displayed = all.filter((m) => {
     const matchesTeam = teamFilter === 'All' || m.team === teamFilter;
+    const status = effectiveStatus(m.id, m.dataSources.leaveStatus);
+    const matchesAvail =
+      availFilter === 'All' ||
+      (availFilter === 'Available' && status === 'available') ||
+      (availFilter === 'OOO' && status === 'ooo');
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
       m.name.toLowerCase().includes(q) ||
       m.role.toLowerCase().includes(q) ||
       m.skills.some((s) => s.toLowerCase().includes(q));
-    return matchesTeam && matchesSearch;
+    return matchesTeam && matchesAvail && matchesSearch;
   });
 
   return (
@@ -303,30 +330,49 @@ export default function TeamPage() {
         </div>
       </div>
 
-      {/* Team filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {TEAM_TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTeamFilter(t)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5',
-              teamFilter === t
-                ? 'bg-status-green/10 text-status-green border-status-green/30'
-                : 'bg-bg-surface text-muted-foreground border-border hover:text-foreground hover:border-border/60'
-            )}
-          >
-            {t}
-            <span
+      {/* Filters */}
+      <div className="space-y-2">
+        {/* Team filter */}
+        <div className="flex gap-2 flex-wrap">
+          {TEAM_TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTeamFilter(t)}
               className={cn(
-                'font-mono text-[10px]',
-                teamFilter === t ? 'text-status-green/70' : 'text-muted-foreground/50'
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5',
+                teamFilter === t
+                  ? 'bg-status-green/10 text-status-green border-status-green/30'
+                  : 'bg-bg-surface text-muted-foreground border-border hover:text-foreground hover:border-border/60'
               )}
             >
-              {counts[t]}
-            </span>
-          </button>
-        ))}
+              {t}
+              <span className={cn('font-mono text-[10px]', teamFilter === t ? 'text-status-green/70' : 'text-muted-foreground/50')}>
+                {counts[t]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Availability filter */}
+        <div className="flex gap-2 flex-wrap">
+          {AVAIL_TABS.map((a) => (
+            <button
+              key={a}
+              onClick={() => setAvailFilter(a)}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5',
+                availFilter === a
+                  ? AVAIL_ACTIVE[a]
+                  : 'bg-bg-surface text-muted-foreground border-border hover:text-foreground hover:border-border/60'
+              )}
+            >
+              {a}
+              <span className={cn('font-mono text-[10px]', availFilter === a ? 'opacity-70' : 'text-muted-foreground/50')}>
+                {availCounts[a]}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Member grid */}
